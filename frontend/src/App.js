@@ -11,6 +11,7 @@ import FavoritePostsPage from './pages/FavoritePostsPage';
 import UserProfilePage from './pages/UserProfilePage';
 import TagPostsPage from './pages/TagPostsPage';
 import UserPostsPage from './pages/UserPostsPage';
+import NotFoundPage from './pages/NotFoundPage';
 
 // Protected route component
 const ProtectedRoute = ({ children }) => {
@@ -85,10 +86,8 @@ function App() {
                 <TagPostsPage />
               }
             />
+            <Route path="*" element={<NotFoundPage />} />
           </Route>
-          
-          {/* 404 route */}
-          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>
     </AuthProvider>
