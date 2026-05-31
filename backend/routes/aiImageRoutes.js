@@ -12,6 +12,67 @@ class ImgurUploadError extends Error {
   }
 }
 
+function getAxiosErrorMessage(error, fallbackMessage) {
+  const apiError = error.response?.data?.error;
+  if (typeof apiError === 'string') {
+    return apiError;
+  }
+  if (typeof apiError?.message === 'string' && apiError.message) {
+    return apiError.message;
+  }
+  if (typeof error.response?.data?.message === 'string') {
+    return error.response.data.message;
+  }
+  if (typeof error.message === 'string') {
+    return error.message;
+  }
+  return fallbackMessage;
+}
+
+async function generateOpenAiImage(prompt) {
+  const openaiResponse = await axios.post(
+    'https://api.openai.com/v1/images/generations',
+    {
+      model: process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1-mini',
+      prompt: `${prompt}, pixel art style`,
+      n: 1,
+      size: '1024x1024',
+      output_format: 'png',
+      quality: 'medium',
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+    }
+  );
+
+  const imageData = openaiResponse.data?.data?.[0];
+  const b64Json = imageData?.b64_json;
+
+  if (b64Json) {
+    return {
+      imageBuffer: Buffer.from(b64Json, 'base64'),
+      fallbackImageUrl: `data:image/png;base64,${b64Json}`,
+    };
+  }
+
+  const legacyUrl = imageData?.url;
+  if (legacyUrl) {
+    const imageDownloadResponse = await axios.get(legacyUrl, {
+      responseType: 'arraybuffer',
+    });
+    return {
+      imageBuffer: Buffer.from(imageDownloadResponse.data, 'binary'),
+      fallbackImageUrl: legacyUrl,
+    };
+  }
+
+  console.error('Failed to extract image from OpenAI response:', openaiResponse.data);
+  throw new Error('Failed to parse image from AI (OpenAI) response.');
+}
+
 async function uploadToImgur(imageBuffer) {
   if (!process.env.IMGUR_CLIENT_ID) {
     console.warn('Imgur Client ID not found. Please set IMGUR_CLIENT_ID environment variable.');
@@ -61,44 +122,17 @@ router.post('/generate-image', auth, async (req, res) => {
     return res.status(400).json({ message: 'A valid prompt is required.' });
   }
 
-  let openaiImageUrl = null;
+  let fallbackImageUrl = null;
   let imageBuffer = null;
 
   try {
-    // Step 1: Generate image using OpenAI
-    const openaiResponse = await axios.post(
-      'https://api.openai.com/v1/images/generations',
-      {
-        prompt: `${prompt}, pixel art style`,
-        n: 1,
-        size: '256x256',
-        response_format: 'url',
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    openaiImageUrl = openaiResponse.data && openaiResponse.data.data && openaiResponse.data.data[0] && openaiResponse.data.data[0].url;
-
-    if (!openaiImageUrl) {
-      console.error('Failed to extract image URL from OpenAI response:', openaiResponse.data);
-      return res.status(500).json({ message: 'Failed to parse image URL from AI (OpenAI) response.' });
-    }
-
-    // Step 2: Download the image from OpenAI URL
-    const imageDownloadResponse = await axios.get(openaiImageUrl, {
-      responseType: 'arraybuffer' // Get image data as a buffer
-    });
-    imageBuffer = Buffer.from(imageDownloadResponse.data, 'binary');
-
+    const generatedImage = await generateOpenAiImage(prompt);
+    imageBuffer = generatedImage.imageBuffer;
+    fallbackImageUrl = generatedImage.fallbackImageUrl;
   } catch (error) {
     const detailedError = error.response ? JSON.stringify(error.response.data, null, 2) : error.message;
-    console.error('Error during OpenAI image generation or download:', detailedError, error.stack);
-    const message = (error instanceof Error && error.message) ? error.message : 'Failed during OpenAI image generation or download.';
+    console.error('Error during OpenAI image generation:', detailedError, error.stack);
+    const message = getAxiosErrorMessage(error, 'Failed during OpenAI image generation.');
     return res.status(500).json({ message });
   }
 
@@ -114,8 +148,8 @@ router.post('/generate-image', auth, async (req, res) => {
     if (imgurError instanceof ImgurUploadError || imgurError.message.includes('Imgur')) {
       console.warn('Imgur upload failed, returning OpenAI URL as fallback:', imgurError.message);
       return res.status(200).json({
-        imageUrl: openaiImageUrl, // Fallback to OpenAI URL
-        warning: `Image generated successfully, but failed to save to Imgur: ${imgurError.message}. Using temporary AI image URL. This URL may expire.`,
+        imageUrl: fallbackImageUrl,
+        warning: `Image generated successfully, but failed to save to Imgur: ${imgurError.message}. Using embedded image data instead.`,
       });
     } else {
       // For any other unexpected errors after OpenAI success but not from Imgur
