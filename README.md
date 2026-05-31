@@ -14,6 +14,7 @@ Users can enjoy a seamless reading experience, save their favorite articles, man
 
 Use these accounts to try the demo (created when the app runs `backend/scripts/initData.js` on startup):
 
+
 1.  **Admin User**
     *   Email: `admin@example.com`
     *   Password: `admin123`
@@ -23,6 +24,8 @@ Use these accounts to try the demo (created when the app runs `backend/scripts/i
     *   Email: `user@example.com`
     *   Password: `user123`
     *   Role: `user`
+
+Note: I am currently using a free-tier database and server, so the initial login may take a little longer than expected.
 
 ![Wordwalker Screenshot](assets/A.png) 
 
