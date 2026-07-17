@@ -16,17 +16,16 @@ import {
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import * as Icons from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
-import httpClient from '../config/httpClient';
-import { API_ENDPOINTS } from '../config/api';
+import { useLikePost } from '../hooks/useLikePost';
 import { formatDistanceToNowStrict } from 'date-fns';
 
 const PostListItem = ({ post, onDelete, onEdit, isAdmin, user }) => {
   const navigate = useNavigate();
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(post.likes?.length || 0);
-  const [isLiking, setIsLiking] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
   const menuOpen = Boolean(anchorEl);
+  const likePost = useLikePost(post._id);
 
   useEffect(() => {
     if (user && post.likes) {
@@ -35,36 +34,34 @@ const PostListItem = ({ post, onDelete, onEdit, isAdmin, user }) => {
     setLikeCount(post.likes?.length || 0);
   }, [user, post.likes]);
 
-  const handleLike = async () => {
+  const handleLike = () => {
     if (!user) {
       navigate('/login');
       return;
     }
-    if (isLiking) return;
+    if (likePost.isPending) return;
 
     const originalLiked = liked;
     const originalLikeCount = likeCount;
 
-    setIsLiking(true);
     setLiked(!originalLiked);
     setLikeCount(prev => !originalLiked ? prev + 1 : Math.max(0, prev - 1));
 
-    try {
-      const response = await httpClient.post(API_ENDPOINTS.POSTS.LIKE(post._id), {});
-      if (response.data) {
-        if (response.data.likeCount !== undefined) setLikeCount(response.data.likeCount);
-        if (response.data.isLiked !== undefined) setLiked(response.data.isLiked);
-        else if (response.data.likes && Array.isArray(response.data.likes) && user?.id) {
-            setLiked(response.data.likes.some(like => like.user === user.id || like.user?._id === user.id));
+    likePost.mutate(undefined, {
+      onSuccess: (data) => {
+        if (!data) return;
+        if (data.likeCount !== undefined) setLikeCount(data.likeCount);
+        if (data.isLiked !== undefined) setLiked(data.isLiked);
+        else if (data.likes && Array.isArray(data.likes) && user?.id) {
+          setLiked(data.likes.some(like => like.user === user.id || like.user?._id === user.id));
         }
+      },
+      onError: (error) => {
+        setLiked(originalLiked);
+        setLikeCount(originalLikeCount);
+        console.error('Error liking post:', error);
       }
-    } catch (error) {
-      setLiked(originalLiked);
-      setLikeCount(originalLikeCount);
-      console.error('Error liking post:', error);
-    } finally {
-      setIsLiking(false);
-    }
+    });
   };
 
   const handleMenuOpen = (event) => setAnchorEl(event.currentTarget);
@@ -123,7 +120,7 @@ const PostListItem = ({ post, onDelete, onEdit, isAdmin, user }) => {
               {formattedDate}
             </Typography>
             <Tooltip title={liked ? "Unlike" : "Like"}>
-              <IconButton size="small" onClick={handleLike} disabled={isLiking} sx={{ p:0.5, color: liked ? 'error.main' : 'text.secondary' }}>
+              <IconButton size="small" onClick={handleLike} disabled={likePost.isPending} sx={{ p:0.5, color: liked ? 'error.main' : 'text.secondary' }}>
                 {liked ? <Icons.Favorite sx={{fontSize: '1.1rem'}} /> : <Icons.FavoriteBorder sx={{fontSize: '1.1rem'}}/>}
               </IconButton>
             </Tooltip>
@@ -178,8 +175,7 @@ const PostListItem = ({ post, onDelete, onEdit, isAdmin, user }) => {
 const PostList = ({ posts, onDelete, onEdit }) => {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
-  
-  console.log('[PostList Main] Rendering with posts:', posts);
+
   if (!posts || posts.length === 0) {
     return <Typography sx={{textAlign: 'center', mt: 5}}>No posts available yet.</Typography>;
   }
