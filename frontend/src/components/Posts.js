@@ -1,74 +1,44 @@
-import React, { useState, useEffect } from 'react';
-import { Container, Typography, Box, Button, Grid } from '@mui/material';
+import React, { useState } from 'react';
+import { Container, Box, Button, Grid } from '@mui/material';
+import { Add as AddIcon } from '@mui/icons-material';
 import PostList from './PostList';
 import PostForm from './PostForm';
 import StaffPicks from './StaffPicks';
 import RecommendedTopics from './RecommendedTopics';
-import httpClient from '../config/httpClient';
 import './Posts.css';
-import { Link, useNavigate } from 'react-router-dom';
-import { API_ENDPOINTS } from '../config/api';
 import { useAuth } from '../context/AuthContext';
-import { 
-  Edit as EditIcon, 
-  Delete as DeleteIcon, 
-  Favorite as FavoriteIcon,
-  Comment as CommentIcon,
-  Add as AddIcon
-} from '@mui/icons-material';
+import { usePosts, useCreatePost, useUpdatePost, useDeletePost } from '../hooks/usePosts';
 
 function Posts() {
-  const [posts, setPosts] = useState([]);
   const [openDialog, setOpenDialog] = useState(false);
   const [editingPost, setEditingPost] = useState(null);
-  const [comment, setComment] = useState('');
-  const [openCommentDialog, setOpenCommentDialog] = useState(false);
-  const [selectedPost, setSelectedPost] = useState(null);
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
-  const navigate = useNavigate();
 
-  useEffect(() => {
-    fetchPosts();
-  }, []);
+  const { data: posts = [] } = usePosts();
+  const createPost = useCreatePost();
+  const updatePost = useUpdatePost();
+  const deletePost = useDeletePost();
 
-  const fetchPosts = async () => {
-    try {
-      const response = await httpClient.get(API_ENDPOINTS.POSTS.LIST);
-      setPosts(response.data);
-    } catch (error) {
-      console.error('Error fetching posts:', error);
-    }
+  const handleCreatePost = (postData) => {
+    createPost.mutate(postData, {
+      onSuccess: () => setOpenDialog(false)
+    });
   };
 
-  const handleCreatePost = async (postData) => {
-    try {
-      await httpClient.post(API_ENDPOINTS.POSTS.CREATE, postData);
-      fetchPosts();
-      setOpenDialog(false);
-    } catch (error) {
-      console.error('Error creating post:', error);
-    }
+  const handleUpdatePost = (postData) => {
+    updatePost.mutate(
+      { id: editingPost._id, postData },
+      {
+        onSuccess: () => {
+          setOpenDialog(false);
+          setEditingPost(null);
+        }
+      }
+    );
   };
 
-  const handleUpdatePost = async (postData) => {
-    try {
-      await httpClient.put(API_ENDPOINTS.POSTS.UPDATE(editingPost._id), postData);
-      fetchPosts();
-      setOpenDialog(false);
-      setEditingPost(null);
-    } catch (error) {
-      console.error('Error updating post:', error);
-    }
-  };
-
-  const handleDeletePost = async (id) => {
-    try {
-      await httpClient.delete(API_ENDPOINTS.POSTS.DELETE(id));
-      fetchPosts();
-    } catch (error) {
-      console.error('Error deleting post:', error);
-    }
+  const handleDeletePost = (id) => {
+    deletePost.mutate(id);
   };
 
   const handleEditPost = (post) => {
@@ -124,4 +94,4 @@ function Posts() {
   );
 }
 
-export default Posts; 
+export default Posts;

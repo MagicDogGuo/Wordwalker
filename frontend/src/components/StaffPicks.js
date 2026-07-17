@@ -1,60 +1,32 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
-  Box,
   Typography,
   List,
   ListItem,
   ListItemText,
-  Avatar,
-  Link,
   Paper,
   CircularProgress,
   Alert
 } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
-import { API_ENDPOINTS } from '../config/api';
-import httpClient from '../config/httpClient';
+import { usePosts } from '../hooks/usePosts';
 
 const StaffPicks = () => {
-  const [picks, setPicks] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  // Shares the same query cache/key as Posts.js, so this no longer triggers
+  // a second network request for the post list.
+  const { data: posts, isLoading, isError } = usePosts();
 
-  useEffect(() => {
-    const fetchPostsAndFilterPicks = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const response = await httpClient.get(API_ENDPOINTS.POSTS.LIST);
-        const allPosts = response.data;
-        
-        if (allPosts && allPosts.length > 0) {
-          // Shuffle posts randomly
-          const shuffledPosts = [...allPosts].sort(() => 0.5 - Math.random());
-          // Take the first three posts, or all if fewer than three
-          setPicks(shuffledPosts.slice(0, 3));
-        } else {
-          setPicks([]); // If there are no posts, picks stays empty
-        }
-
-      } catch (err) {
-        console.error("Error fetching staff picks:", err);
-        setError('Failed to load staff picks.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchPostsAndFilterPicks();
-  }, []);
-
-  if (loading) {
+  if (isLoading) {
     return <CircularProgress />;
   }
 
-  if (error) {
-    return <Alert severity="error">{error}</Alert>;
+  if (isError) {
+    return <Alert severity="error">Failed to load staff picks.</Alert>;
   }
+
+  const picks = posts && posts.length > 0
+    ? [...posts].sort(() => 0.5 - Math.random()).slice(0, 3)
+    : [];
 
   if (picks.length === 0) {
     return <Typography variant="body2">No staff picks available at the moment.</Typography>;
@@ -96,4 +68,4 @@ const StaffPicks = () => {
   );
 };
 
-export default StaffPicks; 
+export default StaffPicks;
