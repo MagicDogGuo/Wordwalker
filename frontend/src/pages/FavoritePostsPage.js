@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import httpClient from '../config/httpClient';
 import { 
   Container, 
   Typography, 
@@ -14,38 +13,21 @@ import {
   Alert
 } from '@mui/material';
 import { useAuth } from '../context/AuthContext';
-import { API_ENDPOINTS } from '../config/api';
+import { useMyFavoritePosts } from '../hooks/useMyFavoritePosts';
 
 const FavoritePostsPage = () => {
-  const [posts, setPosts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const { token } = useAuth(); // Token is required to authorize requests
+  const { token } = useAuth();
+  const { data: posts = [], isLoading, isError, error } = useMyFavoritePosts();
 
-  useEffect(() => {
-    const fetchFavoritePosts = async () => {
-      if (!token) {
-        setError('Please log in to view your favorites.');
-        setLoading(false);
-        return;
-      }
-      try {
-        setLoading(true);
-        const response = await httpClient.get(API_ENDPOINTS.POSTS.MY_FAVORITES);
-        setPosts(response.data);
-        setError('');
-      } catch (err) {
-        console.error('Failed to fetch favorite posts:', err);
-        setError(err.response?.data?.message || 'Could not load favorite posts. Please try again later.');
-      } finally {
-        setLoading(false);
-      }
-    };
+  if (!token) {
+    return (
+      <Container sx={{ py: 4 }}>
+        <Alert severity="error">Please log in to view your favorites.</Alert>
+      </Container>
+    );
+  }
 
-    fetchFavoritePosts();
-  }, [token]);
-
-  if (loading) {
+  if (isLoading) {
     return (
       <Container sx={{ py: 4, textAlign: 'center' }}>
         <CircularProgress />
@@ -54,10 +36,12 @@ const FavoritePostsPage = () => {
     );
   }
 
-  if (error) {
+  if (isError) {
     return (
       <Container sx={{ py: 4 }}>
-        <Alert severity="error">{error}</Alert>
+        <Alert severity="error">
+          {error.response?.data?.message || 'Could not load favorite posts. Please try again later.'}
+        </Alert>
       </Container>
     );
   }
@@ -121,4 +105,4 @@ const FavoritePostsPage = () => {
   );
 };
 
-export default FavoritePostsPage; 
+export default FavoritePostsPage;

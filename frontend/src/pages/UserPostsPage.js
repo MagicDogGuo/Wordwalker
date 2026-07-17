@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
-import httpClient from '../config/httpClient';
+import React, { useState } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import { 
   Container, 
   Typography, 
@@ -20,58 +19,26 @@ import {
   DialogTitle
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
-import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useAuth } from '../context/AuthContext';
-import { API_ENDPOINTS } from '../config/api'; // Assume API endpoints are configured here
-import PostForm from '../components/PostForm'; // Import PostForm
+import { useMyPosts } from '../hooks/useMyPosts';
+import { useCreatePost, useDeletePost } from '../hooks/usePosts';
+import PostForm from '../components/PostForm';
 
 const UserPostsPage = () => {
-  const [posts, setPosts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const { user, token } = useAuth();
-  const navigate = useNavigate();
+  const { token } = useAuth();
+  const { data: posts = [], isLoading, isError, error } = useMyPosts();
+  const createPost = useCreatePost();
+  const deletePost = useDeletePost();
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [postToDelete, setPostToDelete] = useState(null);
-  const [openCreateDialog, setOpenCreateDialog] = useState(false); // State for PostForm dialog
+  const [openCreateDialog, setOpenCreateDialog] = useState(false);
 
-  // Hoist fetchUserPosts and wrap with useCallback
-  const fetchUserPosts = useCallback(async () => {
-    if (!token) {
-      setError('Please log in to manage your posts.');
-      setLoading(false);
-      return;
-    }
-    try {
-      setLoading(true);
-      const response = await httpClient.get(API_ENDPOINTS.POSTS.MY_POSTS);
-      setPosts(response.data);
-      setError('');
-    } catch (err) {
-      console.error('Failed to fetch user posts:', err);
-      setError(err.response?.data?.message || 'Could not load your posts. Please try again later.');
-    } finally {
-      setLoading(false);
-    }
-  }, [token]); // Dependencies for useCallback
-
-  useEffect(() => {
-    fetchUserPosts(); // Call the hoisted function
-  }, [fetchUserPosts]); // useEffect depends on the memoized fetchUserPosts
-
-  const handleCreatePostInDialog = async (postData) => {
-    try {
-      setError(''); // Clear previous errors
-      await httpClient.post(API_ENDPOINTS.POSTS.CREATE, postData);
-      fetchUserPosts(); // Refetch posts to show the new one
-      setOpenCreateDialog(false);
-    } catch (err) {
-      console.error('Error creating post:', err);
-      setError(err.response?.data?.message || 'Could not create the post. Please try again.');
-      // Keep dialog open if error occurs, or handle error display within PostForm
-    }
+  const handleCreatePostInDialog = (postData) => {
+    createPost.mutate(postData, {
+      onSuccess: () => setOpenCreateDialog(false)
+    });
   };
 
   const handleDeleteClick = (postId) => {
@@ -79,20 +46,11 @@ const UserPostsPage = () => {
     setDeleteDialogOpen(true);
   };
 
-  const handleDeleteConfirm = async () => {
+  const handleDeleteConfirm = () => {
     if (!postToDelete) return;
-    try {
-      // Assume API_ENDPOINTS.POSTS.DELETE(postId) is the delete endpoint
-      await httpClient.delete(API_ENDPOINTS.POSTS.DELETE(postToDelete));
-      setPosts(posts.filter(post => post._id !== postToDelete));
-      setPostToDelete(null);
-      setDeleteDialogOpen(false);
-    } catch (err) {
-      console.error('Failed to delete post:', err);
-      setError(err.response?.data?.message || 'Could not delete the post. Please try again.');
-      setPostToDelete(null);
-      setDeleteDialogOpen(false);
-    }
+    deletePost.mutate(postToDelete);
+    setPostToDelete(null);
+    setDeleteDialogOpen(false);
   };
 
   const handleCloseDeleteDialog = () => {
@@ -100,7 +58,15 @@ const UserPostsPage = () => {
     setDeleteDialogOpen(false);
   };
 
-  if (loading) {
+  if (!token) {
+    return (
+      <Container sx={{ py: 4 }}>
+        <Alert severity="error">Please log in to manage your posts.</Alert>
+      </Container>
+    );
+  }
+
+  if (isLoading) {
     return (
       <Container sx={{ py: 4, textAlign: 'center' }}>
         <CircularProgress />
@@ -109,10 +75,12 @@ const UserPostsPage = () => {
     );
   }
 
-  if (error && !posts.length) { // Fill the full page with error only when there are no posts to show
+  if (isError && !posts.length) {
     return (
       <Container sx={{ py: 4 }}>
-        <Alert severity="error">{error}</Alert>
+        <Alert severity="error">
+          {error.response?.data?.message || 'Could not load your posts. Please try again later.'}
+        </Alert>
       </Container>
     );
   }
@@ -125,17 +93,21 @@ const UserPostsPage = () => {
         </Typography>
         <Button
           variant="contained"
-          color="primary" // Match style from Posts.js
+          color="primary"
           startIcon={<AddIcon />}
-          onClick={() => setOpenCreateDialog(true)} // Open dialog instead of navigating
+          onClick={() => setOpenCreateDialog(true)}
         >
           New Post 
         </Button>
       </Box>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>} 
+      {createPost.isError && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {createPost.error.response?.data?.message || 'Could not create the post. Please try again.'}
+        </Alert>
+      )}
 
-      {posts.length === 0 && !loading && !error && (
+      {posts.length === 0 && (
         <Box sx={{ textAlign: 'center', py: 4 }}>
           <Typography variant="h6">You haven't created any posts yet.</Typography>
           <Typography color="text.secondary">
@@ -152,11 +124,6 @@ const UserPostsPage = () => {
                 <Typography variant="h5" component="h2" gutterBottom>
                   {post.title}
                 </Typography>
-                {/* Optionally show author, but this page is usually for the current user
-                <Typography color="text.secondary" gutterBottom>
-                  Author: {post.author?.username || user?.username || 'You'}
-                </Typography>
-                */}
                 <Typography variant="body2" color="text.secondary" paragraph sx={{
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
@@ -223,4 +190,4 @@ const UserPostsPage = () => {
   );
 };
 
-export default UserPostsPage; 
+export default UserPostsPage;
