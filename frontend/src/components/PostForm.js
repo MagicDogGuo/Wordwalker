@@ -12,8 +12,7 @@ import {
   Typography,
   CircularProgress
 } from '@mui/material';
-import httpClient from '../config/httpClient';
-import { API_ENDPOINTS } from '../config/api';
+import { useGeneratePostImage } from '../hooks/useGeneratePostImage';
 
 const PostForm = ({ open, onClose, onSubmit, initialData }) => {
   const [formData, setFormData] = useState({
@@ -23,9 +22,8 @@ const PostForm = ({ open, onClose, onSubmit, initialData }) => {
     imageUrl: ''
   });
   const [tagInput, setTagInput] = useState('');
-  const [isGeneratingAiImage, setIsGeneratingAiImage] = useState(false);
-  const [aiImageError, setAiImageError] = useState('');
   const [aiGeneratedPreviewUrl, setAiGeneratedPreviewUrl] = useState('');
+  const generateImage = useGeneratePostImage();
 
   useEffect(() => {
     if (open) {
@@ -47,8 +45,7 @@ const PostForm = ({ open, onClose, onSubmit, initialData }) => {
         setAiGeneratedPreviewUrl('');
       }
       setTagInput('');
-      setAiImageError('');
-      setIsGeneratingAiImage(false);
+      generateImage.reset();
     }
   }, [initialData, open]);
 
@@ -78,52 +75,34 @@ const PostForm = ({ open, onClose, onSubmit, initialData }) => {
     }));
   };
 
-  const handleGenerateAiImage = async () => {
-    if (!formData.title.trim()) {
-      setAiImageError('Please enter a title to generate an image.');
-      return;
-    }
-    setAiImageError('');
-    setIsGeneratingAiImage(true);
+  const handleGenerateAiImage = () => {
+    if (!formData.title.trim()) return;
+
     setAiGeneratedPreviewUrl('');
     setFormData(prev => ({ ...prev, imageUrl: '' }));
 
-    try {
-      const response = await httpClient.post(API_ENDPOINTS.AI.GENERATE_IMAGE, {
-        prompt: formData.title
-      });
-
-      const imageUrlFromApi = response.data.imageUrl;
-      const warningMessage = response.data.warning;
-
-      if (imageUrlFromApi) {
-        setFormData(prev => ({ ...prev, imageUrl: imageUrlFromApi }));
-        setAiGeneratedPreviewUrl(imageUrlFromApi);
-        
-        if (warningMessage) {
-          setAiImageError(warningMessage);
-          console.warn('AI Image Generation Warning:', warningMessage);
-        } else {
-          setAiImageError('');
+    generateImage.mutate(formData.title, {
+      onSuccess: (data) => {
+        if (data.imageUrl) {
+          setFormData(prev => ({ ...prev, imageUrl: data.imageUrl }));
+          setAiGeneratedPreviewUrl(data.imageUrl);
         }
-      } else {
-        throw new Error('Image URL not found in AI response, even after backend modifications.');
+      },
+      onError: () => {
+        setAiGeneratedPreviewUrl('');
+        setFormData(prev => ({ ...prev, imageUrl: '' }));
       }
-
-    } catch (error) {
-      console.error('Error generating AI image via backend:', error);
-      setAiImageError(error.response?.data?.message || error.message || 'Failed to generate image. Please try again.');
-      setAiGeneratedPreviewUrl('');
-      setFormData(prev => ({ ...prev, imageUrl: '' }));
-    } finally {
-      setIsGeneratingAiImage(false);
-    }
+    });
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     onSubmit(formData);
   };
+
+  const aiImageError = generateImage.isError
+    ? (generateImage.error.response?.data?.message || generateImage.error.message || 'Failed to generate image. Please try again.')
+    : generateImage.data?.warning;
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -154,12 +133,12 @@ const PostForm = ({ open, onClose, onSubmit, initialData }) => {
             <Button
               onClick={handleGenerateAiImage}
               variant="outlined"
-              disabled={isGeneratingAiImage || !formData.title.trim()}
+              disabled={generateImage.isPending || !formData.title.trim()}
               fullWidth
-              startIcon={isGeneratingAiImage ? <CircularProgress size={20} /> : null}
+              startIcon={generateImage.isPending ? <CircularProgress size={20} /> : null}
               sx={{ mb: aiImageError || aiGeneratedPreviewUrl ? 1 : 0 }}
             >
-              {isGeneratingAiImage ? 'Generating Image...' : 'Generate Image with AI from Title'}
+              {generateImage.isPending ? 'Generating Image...' : 'Generate Image with AI from Title'}
             </Button>
             {aiImageError && 
               <Typography 
@@ -219,4 +198,4 @@ const PostForm = ({ open, onClose, onSubmit, initialData }) => {
   );
 };
 
-export default PostForm; 
+export default PostForm;
