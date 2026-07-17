@@ -66,16 +66,21 @@ Note: I am currently using a free-tier database and server, so the initial login
     *   Axios for API communication
     *   React Context API for global state management
 *   **Backend:**
-    *   Node.js (v18+ recommended)
-    *   Express.js framework
-    *   MongoDB (with Mongoose ODM for object modeling)
-    *   JSON Web Tokens (JWT) for authentication
-    *   Axios for making requests to external APIs (e.g., OpenAI)
-    *   `form-data` library for handling image uploads to Imgur
+    *   Node.js (v18+, locked via `engines` / `.nvmrc`)
+    *   Express.js framework (`app.js` for the Express app, `server.js` for startup / graceful shutdown)
+    *   MongoDB with Mongoose ODM
+    *   JSON Web Tokens (JWT) + `bcryptjs` for authentication
+    *   Joi for request validation
+    *   Helmet for HTTP security headers
+    *   `express-rate-limit` for API / auth rate limiting
+    *   Winston for structured logging (stdout)
+    *   Centralized config (`config/index.js`) via `dotenv`
+    *   Axios + `form-data` for OpenAI / Imgur integrations
+    *   ESLint (`eslint-plugin-n`) for linting
 *   **Database:**
     *   MongoDB Atlas (cloud-hosted NoSQL database) or a local MongoDB instance.
 *   **Image Services:**
-    *   OpenAI DALL-E API for AI image generation.
+    *   OpenAI Images API for AI image generation.
     *   Imgur API for image hosting and storage.
 
 ## System Overview
@@ -235,8 +240,8 @@ Before you begin, ensure you have the following installed:
         Create a `.env` file in the `backend` directory with the following content:
         ```env
         MONGODB_URI=your_mongodb_connection_string # e.g., mongodb://localhost:27017/wordwalker or your Atlas connection string
-
-        PORT=5000 # Port for the backend server
+        PORT=5000
+        JWT_SECRET=your_long_random_secret # Required — used to sign/verify JWTs
 
         # OpenAI API Key (for AI image generation)
         OPENAI_API_KEY=your_openai_api_key # Get this from the OpenAI Platform
@@ -244,6 +249,7 @@ Before you begin, ensure you have the following installed:
         # Imgur Client ID (for uploading AI-generated images to Imgur)
         IMGUR_CLIENT_ID=your_imgur_client_id # Register an application on Imgur to get this
         ```
+        See `backend/env.example` for the full list of optional variables (`CLIENT_URL`, `LOG_LEVEL`, rate-limit settings, etc.).
         *   **Obtaining `OPENAI_API_KEY`**: Visit the [OpenAI Platform](https://platform.openai.com/account/api-keys) to create your API key.
         *   **Obtaining `IMGUR_CLIENT_ID`**: Register your application on the [Imgur API Documentation page](https://apidocs.imgur.com/#registerapp). Choose anonymous usage type; an OAuth2 callback URL is not required for this functionality.
 
