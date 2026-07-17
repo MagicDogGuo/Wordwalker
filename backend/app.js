@@ -1,35 +1,21 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const CONFIG = require('./config');
-const logger = require('./utils/logger');
 const authRoutes = require('./routes/auth');
 const postRoutes = require('./routes/posts');
 const commentRoutes = require('./routes/comments');
 const subscriberRoutes = require('./routes/subscribers');
 const aiImageRoutes = require('./routes/aiImageRoutes');
-const initData = require('./scripts/initData');
 const errorHandler = require('./middleware/errorHandler');
 const { apiLimiter, authLimiter } = require('./middleware/rateLimiter');
 
+// This module only defines the Express app (middleware + routes + error
+// handling). It does NOT connect to MongoDB, start listening, or touch
+// process.exit/signals - that all lives in server.js. Keeping side effects out
+// of this module makes it possible to import/test the app without needing a
+// live DB connection or an open port.
 const app = express();
-
-// Connect to MongoDB and initialize data
-logger.info('Connecting to MongoDB...');
-
-mongoose.connect(CONFIG.MONGODB_URI)
-  .then(async () => {
-    logger.info('MongoDB connection successful');
-    // Initialize data
-    logger.info('Starting to initialize data...');
-    await initData();
-    logger.info('Data initialization completed');
-  })
-  .catch(err => {
-    logger.error('MongoDB connection failed:', err);
-    process.exit(1);
-  });
 
 // Security & rate-limiting middleware
 app.use(helmet());
@@ -53,9 +39,4 @@ app.use((req, res) => {
 // instead of formatting error responses ad-hoc (see middleware/errorHandler.js).
 app.use(errorHandler);
 
-const PORT = CONFIG.PORT;
-app.listen(PORT, () => {
-  logger.info(`Server is running on port ${PORT}`);
-});
-
-module.exports = app; 
+module.exports = app;

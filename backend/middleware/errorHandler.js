@@ -33,6 +33,14 @@ function normalizeError(err) {
     return new AppError('Authentication failed', 401);
   }
 
+  if (err.type === 'entity.parse.failed') {
+    // Malformed JSON body (thrown by express.json()) is the client's fault, not ours.
+    // NOTE: intentionally scoped to this specific body-parser error `type`, not a
+    // blanket `instanceof SyntaxError` check, so genuine programmer syntax errors
+    // elsewhere in the app still surface as 500s instead of being hidden as 400s.
+    return new AppError('Invalid JSON in request body', 400);
+  }
+
   // Unknown/programmer error: not operational, will be logged with full detail.
   return err;
 }
