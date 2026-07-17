@@ -1,74 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import { useParams, Link as RouterLink, useNavigate } from 'react-router-dom';
-import { Container, Typography, List, ListItem, /* ListItemText, */ CircularProgress, Alert, Paper, /* Box, */ Divider, Chip, Stack } from '@mui/material'; // ListItemText and Box are not directly used now, kept for future extension
-import { API_ENDPOINTS } from '../config/api';
-import httpClient from '../config/httpClient';
-import ExploreIcon from '@mui/icons-material/Explore'; // Icon for "Explore topics"
-// import { useAuth } from '../context/AuthContext'; // Removed unused import
+import { Container, Typography, List, ListItem, CircularProgress, Alert, Paper, Chip, Stack } from '@mui/material';
+import ExploreIcon from '@mui/icons-material/Explore';
+import { useUniqueTags, usePostsByTag } from '../hooks/usePostsByTag';
 
 const TagPostsPage = () => {
-  const { tagName: rawTagName } = useParams(); // Renamed to rawTagName for clarity
+  const { tagName: rawTagName } = useParams();
   const navigate = useNavigate();
-  const [posts, setPosts] = useState([]);
-  const [loadingPosts, setLoadingPosts] = useState(true);
-  const [errorPosts, setErrorPosts] = useState(null);
-  const [decodedTagName, setDecodedTagName] = useState(''); // Used to display decoded tag name
+  const decodedTagName = rawTagName ? decodeURIComponent(rawTagName) : '';
 
-  const [uniqueTags, setUniqueTags] = useState([]);
-  const [displayedUniqueTags, setDisplayedUniqueTags] = useState([]);
-  const [loadingTags, setLoadingTags] = useState(true);
-  const [errorTags, setErrorTags] = useState(null);
+  const { data: uniqueTags = [], isLoading: loadingTags, isError: isErrorTags } = useUniqueTags();
+  const { data: posts = [], isLoading: loadingPosts, isError: isErrorPosts } = usePostsByTag(decodedTagName);
 
-  // Effect to fetch unique tags and select a subset for display
-  useEffect(() => {
-    const fetchAndProcessUniqueTags = async () => {
-      setLoadingTags(true);
-      setErrorTags(null);
-      try {
-        const response = await httpClient.get(API_ENDPOINTS.POSTS.LIST_UNIQUE_TAGS);
-        const allTags = response.data || [];
-        setUniqueTags(allTags); // Store all tags, might be useful elsewhere or for debugging
-
-        if (allTags.length > 0) {
-          const shuffledTags = [...allTags].sort(() => 0.5 - Math.random());
-          setDisplayedUniqueTags(shuffledTags.slice(0, 5)); // Select first 5 after shuffling
-        } else {
-          setDisplayedUniqueTags([]);
-        }
-
-      } catch (err) {
-        console.error("Error fetching unique tags:", err);
-        setErrorTags("Failed to load topics.");
-        setDisplayedUniqueTags([]); // Clear on error as well
-      } finally {
-        setLoadingTags(false);
-      }
-    };
-    fetchAndProcessUniqueTags();
-  }, []);
-
-  // Effect to fetch posts for the current tag
-  useEffect(() => {
-    if (rawTagName) {
-      const actualTagName = decodeURIComponent(rawTagName);
-      setDecodedTagName(actualTagName);
-
-      const fetchPostsByTag = async () => {
-        setLoadingPosts(true);
-        setErrorPosts(null);
-        try {
-          const response = await httpClient.get(API_ENDPOINTS.POSTS.LIST_BY_TAG(actualTagName));
-          setPosts(response.data);
-        } catch (err) {
-          console.error(`Error fetching posts for tag ${actualTagName}:`, err);
-          setErrorPosts(`Failed to load posts for tag "${actualTagName}". Please try again.`);
-        } finally {
-          setLoadingPosts(false);
-        }
-      };
-      fetchPostsByTag();
-    }
-  }, [rawTagName]);
+  const displayedUniqueTags = useMemo(() => {
+    if (uniqueTags.length === 0) return [];
+    return [...uniqueTags].sort(() => 0.5 - Math.random()).slice(0, 5);
+  }, [uniqueTags]);
 
   if (loadingPosts || loadingTags) {
     return (
@@ -78,10 +25,10 @@ const TagPostsPage = () => {
     );
   }
 
-  if (errorTags) {
+  if (isErrorTags) {
     return (
       <Container sx={{ mt: 4 }}>
-        <Alert severity="error">{errorTags}</Alert>
+        <Alert severity="error">Failed to load topics.</Alert>
       </Container>
     );
   }
@@ -115,10 +62,12 @@ const TagPostsPage = () => {
       </Typography>
 
       <Paper elevation={3} sx={{ p: 3, mt: 2 }}>
-        {errorPosts && (
-          <Alert severity="error" sx={{ mb: 2 }}>{errorPosts}</Alert>
+        {isErrorPosts && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {`Failed to load posts for tag "${decodedTagName}". Please try again.`}
+          </Alert>
         )}
-        {posts.length === 0 && !loadingPosts && !errorPosts && (
+        {posts.length === 0 && !isErrorPosts && (
           <Typography variant="body1">
             No posts found for this tag.
           </Typography>
@@ -147,10 +96,6 @@ const TagPostsPage = () => {
                 <Typography variant="caption" color="text.secondary" gutterBottom>
                   By {post.author?.username || 'Unknown Author'} - {new Date(post.createdAt).toLocaleDateString()}
                 </Typography>
-                {/* Optional: add excerpt or partial content here */}
-                {/* <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                  {post.content?.substring(0, 150)}...
-                </Typography> */}
               </ListItem>
             ))}
           </List>
@@ -160,4 +105,4 @@ const TagPostsPage = () => {
   );
 };
 
-export default TagPostsPage; 
+export default TagPostsPage;
