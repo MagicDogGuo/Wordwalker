@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const CONFIG = require('../config');
+const logger = require('../utils/logger');
 
 const auth = (req, res, next) => {
   try {
@@ -23,6 +24,7 @@ const auth = (req, res, next) => {
     
     next();
   } catch (error) {
+    logger.debug(`Authentication failed: ${error.message}`);
     res.status(401).json({ message: 'Authentication failed' });
   }
 };

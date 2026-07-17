@@ -125,8 +125,8 @@ router.post('/generate-image', auth, validate(schemas.aiImage.generate), asyncHa
     throw new AppError('OpenAI service is not configured (API key missing).', 503);
   }
 
-  let fallbackImageUrl = null;
-  let imageBuffer = null;
+  let fallbackImageUrl;
+  let imageBuffer;
 
   try {
     const generatedImage = await generateOpenAiImage(prompt);
