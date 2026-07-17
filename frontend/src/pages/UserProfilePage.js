@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import httpClient from '../config/httpClient';
 import {
   Container,
   Typography,
@@ -19,20 +18,20 @@ import {
 import {
   Email as EmailIcon,
   Person as PersonIcon,
-  Favorite as FavoriteIcon, // Icon for favorites count
-  VpnKey as VpnKeyIcon // Example icon; can be replaced with a better role icon
+  Favorite as FavoriteIcon,
+  VpnKey as VpnKeyIcon
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
-import { API_ENDPOINTS } from '../config/api';
+import { useMyFavoritePosts } from '../hooks/useMyFavoritePosts';
+import { useUpdateProfile } from '../hooks/useUpdateProfile';
 
 const UserProfilePage = () => {
-  const { user, token, loading: authLoading } = useAuth();
-  const [favoritesCount, setFavoritesCount] = useState(0);
-  const [loadingFavorites, setLoadingFavorites] = useState(true);
-  const [error, setError] = useState('');
+  const { user, loading: authLoading } = useAuth();
+  const { data: favoritePosts, isLoading: loadingFavorites, isError: isFavoritesError } = useMyFavoritePosts();
+  const updateProfile = useUpdateProfile();
+
   const [editMode, setEditMode] = useState(false);
   const [newUsername, setNewUsername] = useState(user?.username || '');
-  const [isUpdating, setIsUpdating] = useState(false);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
 
@@ -40,29 +39,7 @@ const UserProfilePage = () => {
     if (user) {
       setNewUsername(user.username);
     }
-    const fetchFavorites = async () => {
-      if (token) {
-        try {
-          setLoadingFavorites(true);
-          const response = await httpClient.get(API_ENDPOINTS.POSTS.MY_FAVORITES);
-          setFavoritesCount(response.data.length);
-        } catch (err) {
-          console.error('Failed to fetch favorites count:', err);
-          // Do not block page rendering; log error or show a small warning message
-          setError('Could not load favorites count.'); 
-        } finally {
-          setLoadingFavorites(false);
-        }
-      }
-    };
-
-    if (!authLoading && user) { // Ensure auth is loaded and user exists
-      fetchFavorites();
-    } else if (!authLoading && !user) { // If auth finished loading but user does not exist
-      setLoadingFavorites(false); // No need to load favorites
-      setError('Please log in to view your profile.');
-    }
-  }, [token, user, authLoading]);
+  }, [user]);
 
   if (authLoading) {
     return (
@@ -76,18 +53,20 @@ const UserProfilePage = () => {
   if (!user) {
     return (
       <Container sx={{ py: 4 }}>
-        <Alert severity="error">{error || 'User not found. Please log in.'}</Alert>
+        <Alert severity="error">User not found. Please log in.</Alert>
       </Container>
     );
   }
-  
+
+  const favoritesCount = favoritePosts?.length || 0;
+
   const handleUsernameChange = (e) => {
     setNewUsername(e.target.value);
   };
 
   const handleEditToggle = () => {
     setEditMode(!editMode);
-    if (editMode && user) { // Reset input to current username when leaving edit mode
+    if (editMode && user) {
       setNewUsername(user.username);
     }
   };
@@ -97,33 +76,33 @@ const UserProfilePage = () => {
     setSnackbarMessage('');
   };
 
-  const handleSubmitUsername = async (e) => {
+  const handleSubmitUsername = (e) => {
     e.preventDefault();
     if (!newUsername.trim() || newUsername.trim() === user.username) {
       setSnackbarMessage(newUsername.trim() === user.username ? 'Username is the same.' : 'Username cannot be empty.');
       setSnackbarOpen(true);
       return;
     }
-    setIsUpdating(true);
-    try {
-      await httpClient.put(API_ENDPOINTS.AUTH.UPDATE_PROFILE, {
-        username: newUsername.trim()
-      });
-      setSnackbarMessage('Username updated successfully! Page will refresh.');
-      setSnackbarOpen(true);
-      // Updating user state in AuthContext would be cleaner
-      // AuthContext currently has no direct update method, so page refresh is used
-      setTimeout(() => {
-        window.location.reload(); 
-      }, 2000); // Delay refresh so user can see the message
-      setEditMode(false);
-    } catch (err) {
-      console.error('Failed to update username:', err);
-      setSnackbarMessage(err.response?.data?.message || 'Failed to update username. Please try again.');
-      setSnackbarOpen(true);
-    } finally {
-      setIsUpdating(false);
-    }
+
+    updateProfile.mutate(
+      { username: newUsername.trim() },
+      {
+        onSuccess: () => {
+          setSnackbarMessage('Username updated successfully! Page will refresh.');
+          setSnackbarOpen(true);
+          setEditMode(false);
+          // Updating user state in AuthContext would be cleaner
+          // AuthContext currently has no direct update method, so page refresh is used
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000);
+        },
+        onError: (err) => {
+          setSnackbarMessage(err.response?.data?.message || 'Failed to update username. Please try again.');
+          setSnackbarOpen(true);
+        }
+      }
+    );
   };
   
   // Main content: show basic profile info even while favorites are loading
@@ -149,15 +128,15 @@ const UserProfilePage = () => {
                   variant="outlined"
                   size="small"
                   fullWidth
-                  disabled={isUpdating}
+                  disabled={updateProfile.isPending}
                   sx={{ mr: 1 }}
                 />
-                <Button type="submit" variant="contained" color="primary" disabled={isUpdating} size="small">
-                  {isUpdating ? <CircularProgress size={20} color="inherit" /> : 'Save'}
+                <Button type="submit" variant="contained" color="primary" disabled={updateProfile.isPending} size="small">
+                  {updateProfile.isPending ? <CircularProgress size={20} color="inherit" /> : 'Save'}
                 </Button>
               </Box>
             )}
-            <Button onClick={handleEditToggle} disabled={isUpdating} size="small" sx={{ ml: 'auto' }}>
+            <Button onClick={handleEditToggle} disabled={updateProfile.isPending} size="small" sx={{ ml: 'auto' }}>
               {editMode ? 'Cancel' : 'Edit'}
             </Button>
           </ListItem>
@@ -176,14 +155,14 @@ const UserProfilePage = () => {
             <ListItemText 
               primary="Favorites Count" 
               secondary={
-                loadingFavorites ? <CircularProgress size={20} /> : (error && !favoritesCount ? 'Error loading' : favoritesCount)
+                loadingFavorites ? <CircularProgress size={20} /> : (isFavoritesError ? 'Error loading' : favoritesCount)
               } 
             />
           </ListItem>
           <Divider component="li" />
           <ListItem>
             <ListItemIcon>
-              <VpnKeyIcon /> {/* Replace with a more suitable icon if needed */}
+              <VpnKeyIcon />
             </ListItemIcon>
             <ListItemText primary="Role" secondary={user.role || 'N/A'} />
           </ListItem>
@@ -199,4 +178,4 @@ const UserProfilePage = () => {
   );
 };
 
-export default UserProfilePage; 
+export default UserProfilePage;
