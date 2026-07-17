@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
   Typography,
   Box,
@@ -16,53 +16,16 @@ import {
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import * as Icons from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
-import { useLikePost } from '../hooks/useLikePost';
+import { usePostLike } from '../hooks/usePostLike';
 import { formatDistanceToNowStrict } from 'date-fns';
 
 const PostListItem = ({ post, onDelete, onEdit, isAdmin, user }) => {
   const navigate = useNavigate();
-  const [liked, setLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(post.likes?.length || 0);
   const [anchorEl, setAnchorEl] = useState(null);
   const menuOpen = Boolean(anchorEl);
-  const likePost = useLikePost(post._id);
+  const { liked, likeCount, isLiking, toggleLike } = usePostLike(post, user);
 
-  useEffect(() => {
-    if (user && post.likes) {
-      setLiked(post.likes.some(like => like.user === user.id || like.user?._id === user.id));
-    }
-    setLikeCount(post.likes?.length || 0);
-  }, [user, post.likes]);
-
-  const handleLike = () => {
-    if (!user) {
-      navigate('/login');
-      return;
-    }
-    if (likePost.isPending) return;
-
-    const originalLiked = liked;
-    const originalLikeCount = likeCount;
-
-    setLiked(!originalLiked);
-    setLikeCount(prev => !originalLiked ? prev + 1 : Math.max(0, prev - 1));
-
-    likePost.mutate(undefined, {
-      onSuccess: (data) => {
-        if (!data) return;
-        if (data.likeCount !== undefined) setLikeCount(data.likeCount);
-        if (data.isLiked !== undefined) setLiked(data.isLiked);
-        else if (data.likes && Array.isArray(data.likes) && user?.id) {
-          setLiked(data.likes.some(like => like.user === user.id || like.user?._id === user.id));
-        }
-      },
-      onError: (error) => {
-        setLiked(originalLiked);
-        setLikeCount(originalLikeCount);
-        console.error('Error liking post:', error);
-      }
-    });
-  };
+  const handleLike = () => toggleLike(() => navigate('/login'));
 
   const handleMenuOpen = (event) => setAnchorEl(event.currentTarget);
   const handleMenuClose = () => setAnchorEl(null);
@@ -120,7 +83,7 @@ const PostListItem = ({ post, onDelete, onEdit, isAdmin, user }) => {
               {formattedDate}
             </Typography>
             <Tooltip title={liked ? "Unlike" : "Like"}>
-              <IconButton size="small" onClick={handleLike} disabled={likePost.isPending} sx={{ p:0.5, color: liked ? 'error.main' : 'text.secondary' }}>
+              <IconButton size="small" onClick={handleLike} disabled={isLiking} sx={{ p:0.5, color: liked ? 'error.main' : 'text.secondary' }}>
                 {liked ? <Icons.Favorite sx={{fontSize: '1.1rem'}} /> : <Icons.FavoriteBorder sx={{fontSize: '1.1rem'}}/>}
               </IconButton>
             </Tooltip>
