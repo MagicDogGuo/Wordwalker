@@ -7,6 +7,8 @@ const CONFIG = require('../config');
 const logger = require('../utils/logger');
 const asyncHandler = require('../middleware/asyncHandler');
 const AppError = require('../utils/AppError');
+const validate = require('../middleware/validate');
+const schemas = require('../validation/schemas');
 
 // Define a custom error type for Imgur upload failures to identify them later
 class ImgurUploadError extends Error {
@@ -116,14 +118,11 @@ async function uploadToImgur(imageBuffer) {
   }
 }
 
-router.post('/generate-image', auth, asyncHandler(async (req, res) => {
+router.post('/generate-image', auth, validate(schemas.aiImage.generate), asyncHandler(async (req, res) => {
   const { prompt } = req.body;
 
   if (!CONFIG.OPENAI_API_KEY) {
     throw new AppError('OpenAI service is not configured (API key missing).', 503);
-  }
-  if (!prompt || typeof prompt !== 'string' || prompt.trim() === '') {
-    throw new AppError('A valid prompt is required.', 400);
   }
 
   let fallbackImageUrl = null;

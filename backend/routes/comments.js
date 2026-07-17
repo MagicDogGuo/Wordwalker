@@ -5,6 +5,8 @@ const Comment = require('../models/Comment');
 const Post = require('../models/Post');
 const asyncHandler = require('../middleware/asyncHandler');
 const AppError = require('../utils/AppError');
+const validate = require('../middleware/validate');
+const schemas = require('../validation/schemas');
 
 // Get all comments for a post
 router.get('/post/:postId', asyncHandler(async (req, res) => {
@@ -18,7 +20,7 @@ router.get('/post/:postId', asyncHandler(async (req, res) => {
 }));
 
 // Create a new comment
-router.post('/', auth, asyncHandler(async (req, res) => {
+router.post('/', auth, validate(schemas.comments.create), asyncHandler(async (req, res) => {
   const { postId, content } = req.body;
 
   // Check whether the post exists
@@ -41,7 +43,7 @@ router.post('/', auth, asyncHandler(async (req, res) => {
 }));
 
 // Update comment
-router.put('/:id', auth, asyncHandler(async (req, res) => {
+router.put('/:id', auth, validate(schemas.comments.update), asyncHandler(async (req, res) => {
   const comment = await Comment.findById(req.params.id);
   if (!comment) {
     throw new AppError('Comment does not exist', 404);

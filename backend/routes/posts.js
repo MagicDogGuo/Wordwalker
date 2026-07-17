@@ -5,6 +5,8 @@ const { auth } = require('../middleware/auth');
 const User = require('../models/User');
 const asyncHandler = require('../middleware/asyncHandler');
 const AppError = require('../utils/AppError');
+const validate = require('../middleware/validate');
+const schemas = require('../validation/schemas');
 
 // Get all posts
 router.get('/', asyncHandler(async (req, res) => {
@@ -73,7 +75,7 @@ router.get('/:id', asyncHandler(async (req, res) => {
 }));
 
 // Create post
-router.post('/', auth, asyncHandler(async (req, res) => {
+router.post('/', auth, validate(schemas.posts.create), asyncHandler(async (req, res) => {
   const { title, content, imageUrl, tags } = req.body;
   const post = new Post({
     title,
@@ -88,7 +90,7 @@ router.post('/', auth, asyncHandler(async (req, res) => {
 }));
 
 // Update post
-router.put('/:id', auth, asyncHandler(async (req, res) => {
+router.put('/:id', auth, validate(schemas.posts.update), asyncHandler(async (req, res) => {
   const post = await Post.findById(req.params.id);
 
   if (!post) {

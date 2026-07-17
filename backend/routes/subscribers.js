@@ -4,9 +4,11 @@ const { auth } = require('../middleware/auth');
 const Subscriber = require('../models/Subscriber');
 const asyncHandler = require('../middleware/asyncHandler');
 const AppError = require('../utils/AppError');
+const validate = require('../middleware/validate');
+const schemas = require('../validation/schemas');
 
 // Subscribe to newsletter
-router.post('/', asyncHandler(async (req, res) => {
+router.post('/', validate(schemas.subscribers.subscribe), asyncHandler(async (req, res) => {
   const { email } = req.body;
 
   // Check whether already subscribed
@@ -49,7 +51,7 @@ router.get('/', auth, asyncHandler(async (req, res) => {
 }));
 
 // Update subscriber status (admin only)
-router.put('/:id', auth, asyncHandler(async (req, res) => {
+router.put('/:id', auth, validate(schemas.subscribers.updateStatus), asyncHandler(async (req, res) => {
   if (req.user.role !== 'admin') {
     throw new AppError('No permission to access this resource', 403);
   }
