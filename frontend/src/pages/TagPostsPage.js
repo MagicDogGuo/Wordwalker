@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link as RouterLink, useNavigate } from 'react-router-dom';
 import { Container, Typography, List, ListItem, /* ListItemText, */ CircularProgress, Alert, Paper, /* Box, */ Divider, Chip, Stack } from '@mui/material'; // ListItemText and Box are not directly used now, kept for future extension
 import { API_ENDPOINTS } from '../config/api';
-import axios from 'axios';
+import httpClient from '../config/httpClient';
 import ExploreIcon from '@mui/icons-material/Explore'; // Icon for "Explore topics"
 // import { useAuth } from '../context/AuthContext'; // Removed unused import
 
@@ -25,7 +25,7 @@ const TagPostsPage = () => {
       setLoadingTags(true);
       setErrorTags(null);
       try {
-        const response = await axios.get(API_ENDPOINTS.POSTS.LIST_UNIQUE_TAGS);
+        const response = await httpClient.get(API_ENDPOINTS.POSTS.LIST_UNIQUE_TAGS);
         const allTags = response.data || [];
         setUniqueTags(allTags); // Store all tags, might be useful elsewhere or for debugging
 
@@ -57,7 +57,7 @@ const TagPostsPage = () => {
         setLoadingPosts(true);
         setErrorPosts(null);
         try {
-          const response = await axios.get(API_ENDPOINTS.POSTS.LIST_BY_TAG(actualTagName));
+          const response = await httpClient.get(API_ENDPOINTS.POSTS.LIST_BY_TAG(actualTagName));
           setPosts(response.data);
         } catch (err) {
           console.error(`Error fetching posts for tag ${actualTagName}:`, err);

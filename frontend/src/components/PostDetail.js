@@ -22,7 +22,7 @@ import {
   Favorite as FavoriteIcon,
   FavoriteBorder as FavoriteBorderIcon
 } from '@mui/icons-material';
-import axios from 'axios';
+import httpClient from '../config/httpClient';
 import { API_ENDPOINTS } from '../config/api';
 import { useAuth } from '../context/AuthContext';
 import CommentList from './CommentList';
@@ -63,7 +63,7 @@ const PostDetail = () => {
     try {
       const apiUrl = API_ENDPOINTS.POSTS.DETAIL(id);
       console.log(`[PostDetail Diagnostics] Attempting to fetch post from: ${apiUrl}`);
-      const response = await axios.get(apiUrl);
+      const response = await httpClient.get(apiUrl);
       const postData = response.data;
       
       console.log('[PostDetail Diagnostics] Fetched post data:', JSON.stringify(postData));
@@ -119,15 +119,7 @@ const PostDetail = () => {
   const handleDeletePost = async () => {
     if (window.confirm('Are you sure you want to delete this post?')) {
       try {
-        const token = localStorage.getItem('token');
-        await axios.delete(
-          API_ENDPOINTS.POSTS.DELETE(id),
-          {
-            headers: {
-              Authorization: `Bearer ${token}`
-            }
-          }
-        );
+        await httpClient.delete(API_ENDPOINTS.POSTS.DELETE(id));
         navigate('/posts');
       } catch (error) {
         setError('Failed to delete post');
@@ -177,16 +169,7 @@ const PostDetail = () => {
 
   const handleSaveEdit = async () => {
     try {
-      const token = localStorage.getItem('token');
-      await axios.put(
-        API_ENDPOINTS.POSTS.UPDATE(id),
-        editForm,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        }
-      );
+      await httpClient.put(API_ENDPOINTS.POSTS.UPDATE(id), editForm);
       await fetchPost();
       setIsEditing(false);
     } catch (error) {
@@ -212,15 +195,8 @@ const PostDetail = () => {
     setLikeCount(prevCount => !originalIsLiked ? prevCount + 1 : Math.max(0, prevCount - 1));
 
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.post(
-        API_ENDPOINTS.POSTS.LIKE(id),
-        {},
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
-      
+      const response = await httpClient.post(API_ENDPOINTS.POSTS.LIKE(id), {});
+
       if (response.data && response.data.likeCount !== undefined) {
         setLikeCount(response.data.likeCount);
       }

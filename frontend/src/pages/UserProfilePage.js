@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import httpClient from '../config/httpClient';
 import {
   Container,
   Typography,
@@ -44,11 +44,7 @@ const UserProfilePage = () => {
       if (token) {
         try {
           setLoadingFavorites(true);
-          const response = await axios.get(API_ENDPOINTS.POSTS.MY_FAVORITES, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-            },
-          });
+          const response = await httpClient.get(API_ENDPOINTS.POSTS.MY_FAVORITES);
           setFavoritesCount(response.data.length);
         } catch (err) {
           console.error('Failed to fetch favorites count:', err);
@@ -110,15 +106,9 @@ const UserProfilePage = () => {
     }
     setIsUpdating(true);
     try {
-      const response = await axios.put(
-        API_ENDPOINTS.AUTH.UPDATE_PROFILE,
-        { username: newUsername.trim() },
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        }
-      );
+      await httpClient.put(API_ENDPOINTS.AUTH.UPDATE_PROFILE, {
+        username: newUsername.trim()
+      });
       setSnackbarMessage('Username updated successfully! Page will refresh.');
       setSnackbarOpen(true);
       // Updating user state in AuthContext would be cleaner

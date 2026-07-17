@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import httpClient from '../config/httpClient';
+import { API_ENDPOINTS } from '../config/api';
 import './SubscribeForm.css';
 
 const SubscribeForm = () => {
@@ -15,7 +16,7 @@ const SubscribeForm = () => {
     setMessage('');
 
     try {
-      const response = await axios.post('/api/subscribers', { email });
+      const response = await httpClient.post(API_ENDPOINTS.SUBSCRIBERS.SUBSCRIBE, { email });
       setMessage(response.data.message);
       setEmail('');
     } catch (error) {

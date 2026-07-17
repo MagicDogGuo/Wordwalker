@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import axios from 'axios';
+import httpClient from '../config/httpClient';
 import { 
   Container, 
   Typography, 
@@ -31,11 +31,7 @@ const FavoritePostsPage = () => {
       }
       try {
         setLoading(true);
-        const response = await axios.get(API_ENDPOINTS.POSTS.MY_FAVORITES, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
+        const response = await httpClient.get(API_ENDPOINTS.POSTS.MY_FAVORITES);
         setPosts(response.data);
         setError('');
       } catch (err) {

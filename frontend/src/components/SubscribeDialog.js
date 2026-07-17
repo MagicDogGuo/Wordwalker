@@ -11,7 +11,7 @@ import {
   IconButton
 } from '@mui/material';
 import { Close as CloseIcon } from '@mui/icons-material';
-import axios from 'axios';
+import httpClient from '../config/httpClient';
 import { API_ENDPOINTS } from '../config/api';
 import { useAuth } from '../context/AuthContext';
 
@@ -38,7 +38,7 @@ const SubscribeDialog = ({ open, onClose }) => {
     setMessage('');
 
     try {
-      const response = await axios.post(API_ENDPOINTS.SUBSCRIBERS.SUBSCRIBE, { email });
+      const response = await httpClient.post(API_ENDPOINTS.SUBSCRIBERS.SUBSCRIBE, { email });
       setMessage(response.data.message);
       setEmail('');
       setTimeout(() => {

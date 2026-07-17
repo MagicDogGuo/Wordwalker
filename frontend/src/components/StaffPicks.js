@@ -13,7 +13,7 @@ import {
 } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
 import { API_ENDPOINTS } from '../config/api';
-import axios from 'axios';
+import httpClient from '../config/httpClient';
 
 const StaffPicks = () => {
   const [picks, setPicks] = useState([]);
@@ -25,7 +25,7 @@ const StaffPicks = () => {
       setLoading(true);
       setError(null);
       try {
-        const response = await axios.get(API_ENDPOINTS.POSTS.LIST);
+        const response = await httpClient.get(API_ENDPOINTS.POSTS.LIST);
         const allPosts = response.data;
         
         if (allPosts && allPosts.length > 0) {

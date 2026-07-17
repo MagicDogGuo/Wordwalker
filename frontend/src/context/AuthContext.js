@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import axios from 'axios';
+import httpClient from '../config/httpClient';
 import { API_ENDPOINTS } from '../config/api';
 
 const AuthContext = createContext(null);
@@ -12,11 +12,7 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
     if (storedToken) {
-      axios.get(API_ENDPOINTS.AUTH.ME, {
-        headers: {
-          Authorization: `Bearer ${storedToken}`
-        }
-      })
+      httpClient.get(API_ENDPOINTS.AUTH.ME)
       .then(response => {
         setUser(response.data);
         setToken(storedToken);
@@ -39,7 +35,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (formData) => {
     try {
-      const response = await axios.post(API_ENDPOINTS.AUTH.LOGIN, formData);
+      const response = await httpClient.post(API_ENDPOINTS.AUTH.LOGIN, formData);
       const { token: newToken, user: userData } = response.data;
       localStorage.setItem('token', newToken);
       setUser(userData);
@@ -55,10 +51,8 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (formData) => {
     try {
-      console.log('Sending registration request:', formData);
-      const response = await axios.post(API_ENDPOINTS.AUTH.REGISTER, formData);
-      console.log('Registration response:', response.data);
-      
+      await httpClient.post(API_ENDPOINTS.AUTH.REGISTER, formData);
+
       return { 
         success: true,
         message: 'Registration successful, please login'

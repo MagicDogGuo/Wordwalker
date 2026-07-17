@@ -12,9 +12,8 @@ import {
   Typography,
   CircularProgress
 } from '@mui/material';
-import axios from 'axios';
+import httpClient from '../config/httpClient';
 import { API_ENDPOINTS } from '../config/api';
-import { useAuth } from '../context/AuthContext';
 
 const PostForm = ({ open, onClose, onSubmit, initialData }) => {
   const [formData, setFormData] = useState({
@@ -27,7 +26,6 @@ const PostForm = ({ open, onClose, onSubmit, initialData }) => {
   const [isGeneratingAiImage, setIsGeneratingAiImage] = useState(false);
   const [aiImageError, setAiImageError] = useState('');
   const [aiGeneratedPreviewUrl, setAiGeneratedPreviewUrl] = useState('');
-  const { token } = useAuth();
 
   useEffect(() => {
     if (open) {
@@ -91,16 +89,10 @@ const PostForm = ({ open, onClose, onSubmit, initialData }) => {
     setFormData(prev => ({ ...prev, imageUrl: '' }));
 
     try {
-      const response = await axios.post(
-        API_ENDPOINTS.AI.GENERATE_IMAGE, 
-        { prompt: formData.title },
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      );
-      
+      const response = await httpClient.post(API_ENDPOINTS.AI.GENERATE_IMAGE, {
+        prompt: formData.title
+      });
+
       const imageUrlFromApi = response.data.imageUrl;
       const warningMessage = response.data.warning;
 

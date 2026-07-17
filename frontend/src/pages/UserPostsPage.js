@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import httpClient from '../config/httpClient';
 import { 
   Container, 
   Typography, 
@@ -46,11 +46,7 @@ const UserPostsPage = () => {
     }
     try {
       setLoading(true);
-      const response = await axios.get(API_ENDPOINTS.POSTS.MY_POSTS, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const response = await httpClient.get(API_ENDPOINTS.POSTS.MY_POSTS);
       setPosts(response.data);
       setError('');
     } catch (err) {
@@ -68,11 +64,7 @@ const UserPostsPage = () => {
   const handleCreatePostInDialog = async (postData) => {
     try {
       setError(''); // Clear previous errors
-      await axios.post(API_ENDPOINTS.POSTS.CREATE, postData, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
+      await httpClient.post(API_ENDPOINTS.POSTS.CREATE, postData);
       fetchUserPosts(); // Refetch posts to show the new one
       setOpenCreateDialog(false);
     } catch (err) {
@@ -91,11 +83,7 @@ const UserPostsPage = () => {
     if (!postToDelete) return;
     try {
       // Assume API_ENDPOINTS.POSTS.DELETE(postId) is the delete endpoint
-      await axios.delete(API_ENDPOINTS.POSTS.DELETE(postToDelete), {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      await httpClient.delete(API_ENDPOINTS.POSTS.DELETE(postToDelete));
       setPosts(posts.filter(post => post._id !== postToDelete));
       setPostToDelete(null);
       setDeleteDialogOpen(false);

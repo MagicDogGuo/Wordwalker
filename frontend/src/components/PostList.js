@@ -16,7 +16,7 @@ import {
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import * as Icons from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
-import axios from 'axios';
+import httpClient from '../config/httpClient';
 import { API_ENDPOINTS } from '../config/api';
 import { formatDistanceToNowStrict } from 'date-fns';
 
@@ -50,12 +50,7 @@ const PostListItem = ({ post, onDelete, onEdit, isAdmin, user }) => {
     setLikeCount(prev => !originalLiked ? prev + 1 : Math.max(0, prev - 1));
 
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.post(
-        API_ENDPOINTS.POSTS.LIKE(post._id),
-        {},
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const response = await httpClient.post(API_ENDPOINTS.POSTS.LIKE(post._id), {});
       if (response.data) {
         if (response.data.likeCount !== undefined) setLikeCount(response.data.likeCount);
         if (response.data.isLiked !== undefined) setLiked(response.data.isLiked);

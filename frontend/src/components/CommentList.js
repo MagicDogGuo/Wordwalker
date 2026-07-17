@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import httpClient from '../config/httpClient';
 import { useAuth } from '../context/AuthContext';
 import './CommentList.css';
 import { API_ENDPOINTS } from '../config/api';
@@ -14,7 +14,7 @@ const CommentList = ({ postId }) => {
   const fetchComments = async () => {
     try {
       console.log(`[CommentList Diagnostics] Fetching comments for postId: ${postId}`);
-      const response = await axios.get(API_ENDPOINTS.COMMENTS.LIST(postId));
+      const response = await httpClient.get(API_ENDPOINTS.COMMENTS.LIST(postId));
       console.log('[CommentList Diagnostics] Fetched comments data from backend:', JSON.stringify(response.data));
       setComments(response.data);
     } catch (error) {
@@ -43,13 +43,10 @@ const CommentList = ({ postId }) => {
     }
 
     try {
-      const response = await axios.post(
-        API_ENDPOINTS.COMMENTS.CREATE,
-        { postId, content: newComment },
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
+      const response = await httpClient.post(API_ENDPOINTS.COMMENTS.CREATE, {
+        postId,
+        content: newComment
+      });
       setComments([response.data, ...comments]);
       setNewComment('');
       setError('');
@@ -61,9 +58,7 @@ const CommentList = ({ postId }) => {
   // Delete comment
   const handleDelete = async (commentId) => {
     try {
-      await axios.delete(API_ENDPOINTS.COMMENTS.DELETE(commentId), {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await httpClient.delete(API_ENDPOINTS.COMMENTS.DELETE(commentId));
       setComments(comments.filter(comment => comment._id !== commentId));
       setError('');
     } catch (error) {

@@ -4,7 +4,7 @@ import PostList from './PostList';
 import PostForm from './PostForm';
 import StaffPicks from './StaffPicks';
 import RecommendedTopics from './RecommendedTopics';
-import axios from 'axios';
+import httpClient from '../config/httpClient';
 import './Posts.css';
 import { Link, useNavigate } from 'react-router-dom';
 import { API_ENDPOINTS } from '../config/api';
@@ -34,7 +34,7 @@ function Posts() {
 
   const fetchPosts = async () => {
     try {
-      const response = await axios.get(API_ENDPOINTS.POSTS.LIST);
+      const response = await httpClient.get(API_ENDPOINTS.POSTS.LIST);
       setPosts(response.data);
     } catch (error) {
       console.error('Error fetching posts:', error);
@@ -43,12 +43,7 @@ function Posts() {
 
   const handleCreatePost = async (postData) => {
     try {
-      const token = localStorage.getItem('token');
-      await axios.post(API_ENDPOINTS.POSTS.CREATE, postData, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
+      await httpClient.post(API_ENDPOINTS.POSTS.CREATE, postData);
       fetchPosts();
       setOpenDialog(false);
     } catch (error) {
@@ -58,16 +53,7 @@ function Posts() {
 
   const handleUpdatePost = async (postData) => {
     try {
-      const token = localStorage.getItem('token');
-      await axios.put(
-        API_ENDPOINTS.POSTS.UPDATE(editingPost._id), 
-        postData,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        }
-      );
+      await httpClient.put(API_ENDPOINTS.POSTS.UPDATE(editingPost._id), postData);
       fetchPosts();
       setOpenDialog(false);
       setEditingPost(null);
@@ -78,15 +64,7 @@ function Posts() {
 
   const handleDeletePost = async (id) => {
     try {
-      const token = localStorage.getItem('token');
-      await axios.delete(
-        API_ENDPOINTS.POSTS.DELETE(id),
-        {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        }
-      );
+      await httpClient.delete(API_ENDPOINTS.POSTS.DELETE(id));
       fetchPosts();
     } catch (error) {
       console.error('Error deleting post:', error);
