@@ -3,8 +3,6 @@ import {
   Typography,
   Box,
   Card,
-  Button,
-  Grid,
   IconButton,
   Tooltip,
   Avatar,
@@ -23,7 +21,7 @@ const PostListItem = ({ post, onDelete, onEdit, isAdmin, user }) => {
   const navigate = useNavigate();
   const [anchorEl, setAnchorEl] = useState(null);
   const menuOpen = Boolean(anchorEl);
-  const { liked, likeCount, isLiking, toggleLike } = usePostLike(post, user);
+  const { liked, isLiking, toggleLike } = usePostLike(post, user);
 
   const handleLike = () => toggleLike(() => navigate('/login'));
 

@@ -47,6 +47,9 @@ const PostForm = ({ open, onClose, onSubmit, initialData }) => {
       setTagInput('');
       generateImage.reset();
     }
+    // generateImage is a mutation object recreated every render; only its
+    // stable .reset() is needed here, so it's intentionally left out.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialData, open]);
 
   const handleChange = (e) => {
