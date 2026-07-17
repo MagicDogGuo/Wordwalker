@@ -8,12 +8,7 @@ import {
   Button,
   Chip,
   IconButton,
-  Tooltip,
-  TextField,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions
+  Tooltip
 } from '@mui/material';
 import { 
   Edit as EditIcon, 
@@ -28,6 +23,7 @@ import { usePostLike } from '../hooks/usePostLike';
 import { useDeletePost, useUpdatePost } from '../hooks/usePosts';
 import CommentList from './CommentList';
 import SubscribeForm from './SubscribeForm';
+import PostEditDialog from './PostEditDialog';
 import './PostDetail.css';
 
 const PostDetail = () => {
@@ -42,12 +38,6 @@ const PostDetail = () => {
   const updatePost = useUpdatePost();
 
   const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState({
-    title: '',
-    content: '',
-    tags: []
-  });
-  const [tagInput, setTagInput] = useState('');
 
   const handleDeletePost = () => {
     if (window.confirm('Are you sure you want to delete this post?')) {
@@ -57,49 +47,9 @@ const PostDetail = () => {
     }
   };
 
-  const handleEditClick = () => {
-    setEditForm({
-      title: post.title,
-      content: post.content,
-      tags: post.tags || []
-    });
-    setTagInput('');
-    setIsEditing(true);
-  };
-
-  const handleEditClose = () => {
-    setIsEditing(false);
-  };
-
-  const handleEditChange = (e) => {
-    const { name, value } = e.target;
-    setEditForm(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  const handleAddTag = (e) => {
-    if (e.key === 'Enter' && tagInput.trim()) {
-      e.preventDefault();
-      setEditForm(prev => ({
-        ...prev,
-        tags: [...new Set([...prev.tags, tagInput.trim()])]
-      }));
-      setTagInput('');
-    }
-  };
-
-  const handleDeleteTag = (tagToDelete) => {
-    setEditForm(prev => ({
-      ...prev,
-      tags: prev.tags.filter(tag => tag !== tagToDelete)
-    }));
-  };
-
-  const handleSaveEdit = () => {
+  const handleSaveEdit = (postData) => {
     updatePost.mutate(
-      { id, postData: editForm },
+      { id, postData },
       { onSuccess: () => setIsEditing(false) }
     );
   };
@@ -132,7 +82,7 @@ const PostDetail = () => {
               {canManagePost && (
                 <Box>
                   <Tooltip title="Edit Post">
-                    <IconButton onClick={handleEditClick} color="primary">
+                    <IconButton onClick={() => setIsEditing(true)} color="primary">
                       <EditIcon />
                     </IconButton>
                   </Tooltip>
@@ -228,56 +178,13 @@ const PostDetail = () => {
         </Box>
       </Container>
 
-      {/* Edit Dialog */}
-      <Dialog open={isEditing} onClose={handleEditClose} maxWidth="md" fullWidth>
-        <DialogTitle>Edit Post</DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
-            <TextField
-              label="Title"
-              name="title"
-              value={editForm.title}
-              onChange={handleEditChange}
-              required
-              fullWidth
-            />
-            <TextField
-              label="Content"
-              name="content"
-              value={editForm.content}
-              onChange={handleEditChange}
-              required
-              multiline
-              rows={6}
-              fullWidth
-            />
-            <TextField
-              label="Add Tags"
-              value={tagInput}
-              onChange={(e) => setTagInput(e.target.value)}
-              onKeyPress={handleAddTag}
-              placeholder="Press Enter to add a tag"
-              fullWidth
-            />
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-              {editForm.tags.map((tag, index) => (
-                <Chip
-                  key={index}
-                  label={tag}
-                  onDelete={() => handleDeleteTag(tag)}
-                  color="tag_color" //primary
-                />
-              ))}
-            </Box>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleEditClose}>Cancel</Button>
-          <Button onClick={handleSaveEdit} variant="contained" color="primary" disabled={updatePost.isPending}>
-            {updatePost.isPending ? 'Saving...' : 'Save Changes'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <PostEditDialog
+        open={isEditing}
+        post={post}
+        onClose={() => setIsEditing(false)}
+        onSave={handleSaveEdit}
+        isSaving={updatePost.isPending}
+      />
     </div>
   );
 };
