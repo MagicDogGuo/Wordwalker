@@ -33,17 +33,99 @@ router.get('/', async (req, res) => {
   }
 });
 
+// NOTE: routes with static/specific path segments (e.g. /me/favorites, /tag/:tagName)
+// must be declared BEFORE the generic '/:id' route below, otherwise Express will
+// match them against '/:id' first and treat e.g. "me" or "tag" as a post id.
+
+// GET all posts liked (favorited) by current user
+router.get('/me/favorites', auth, async (req, res) => {
+  try {
+    // req.user._id should be set by auth middleware after token parsing
+    const userId = req.user._id;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authorized or user ID is invalid' });
+    }
+
+    // Find all posts where likes[].user equals userId
+    const favoritePosts = await Post.find({ 'likes.user': userId })
+                                    .populate('author', 'username email') // Populate author's username and email
+                                    .sort({ createdAt: -1 });     // Sort by creation time descending
+
+    res.json(favoritePosts);
+  } catch (error) {
+    console.error('Error fetching favorite posts:', error);
+    res.status(500).json({ message: 'Failed to fetch favorite posts. Please try again later.' });
+  }
+});
+
+// GET all posts published by current user
+router.get('/me/myposts', auth, async (req, res) => {
+  try {
+    const userId = req.user._id; // Get user ID from auth middleware
+
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authorized or user ID is invalid' });
+    }
+
+    const userPosts = await Post.find({ author: userId })
+                                .populate('author', 'username email') // Populate author info
+                                .sort({ createdAt: -1 });     // Sort by creation time descending
+
+    res.json(userPosts);
+  } catch (error) {
+    console.error('Error fetching user\'s posts:', error);
+    res.status(500).json({ message: 'Failed to fetch user\'s posts. Please try again later.' });
+  }
+});
+
+// New: get posts by tag name
+router.get('/tag/:tagName', async (req, res) => {
+  try {
+    const tagName = req.params.tagName;
+    // Find posts whose tags array contains tagName
+    // Assumes stored tagName casing matches the incoming value
+    const posts = await Post.find({ tags: tagName })
+      .populate('author', 'username')
+      .sort({ createdAt: -1 });
+
+    if (!posts || posts.length === 0) {
+      // No posts is not strictly an error; return empty array or a custom message
+      // return res.status(404).json({ message: `No posts found with tag: ${tagName}` });
+      return res.json([]); // Returning an empty array is more common
+    }
+
+    res.json(posts);
+  } catch (error) {
+    console.error(`Error fetching posts by tag ${req.params.tagName}:`, error);
+    res.status(500).json({ message: 'Failed to fetch posts by tag. Please try again later.' });
+  }
+});
+
+// New: get all unique tags
+router.get('/tags/unique', async (req, res) => {
+  try {
+    const uniqueTags = await Post.distinct('tags');
+    // distinct() returns an array of all unique tags
+    // Example: ["Tech", "Health", "AI", "Science"]
+    res.json(uniqueTags.sort()); // Return sorted alphabetically
+  } catch (error) {
+    console.error('Error fetching unique tags:', error);
+    res.status(500).json({ message: 'Failed to fetch unique tags. Please try again later.' });
+  }
+});
+
 // Get a single post
 router.get('/:id', async (req, res) => {
   try {
     const post = await Post.findById(req.params.id)
       .populate('author', 'username')
       .populate('likes.user', 'username');
-    
+
     if (!post) {
       return res.status(404).json({ message: 'Post does not exist' });
     }
-    
+
     res.json(post);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -73,7 +155,7 @@ router.post('/', auth, async (req, res) => {
 router.put('/:id', auth, async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
-    
+
     if (!post) {
       return res.status(404).json({ message: 'Post does not exist' });
     }
@@ -172,82 +254,4 @@ router.post('/:id/like', auth, async (req, res) => {
   }
 });
 
-// GET all posts liked (favorited) by current user
-router.get('/me/favorites', auth, async (req, res) => {
-  try {
-    // req.user._id should be set by auth middleware after token parsing
-    const userId = req.user._id; 
-
-    if (!userId) {
-      return res.status(401).json({ message: 'User not authorized or user ID is invalid' });
-    }
-
-    // Find all posts where likes[].user equals userId
-    const favoritePosts = await Post.find({ 'likes.user': userId })
-                                    .populate('author', 'username email') // Populate author's username and email
-                                    .sort({ createdAt: -1 });     // Sort by creation time descending
-
-    res.json(favoritePosts);
-  } catch (error) {
-    console.error('Error fetching favorite posts:', error);
-    res.status(500).json({ message: 'Failed to fetch favorite posts. Please try again later.' });
-  }
-});
-
-// GET all posts published by current user
-router.get('/me/myposts', auth, async (req, res) => {
-  try {
-    const userId = req.user._id; // Get user ID from auth middleware
-
-    if (!userId) {
-      return res.status(401).json({ message: 'User not authorized or user ID is invalid' });
-    }
-
-    const userPosts = await Post.find({ author: userId })
-                                .populate('author', 'username email') // Populate author info
-                                .sort({ createdAt: -1 });     // Sort by creation time descending
-
-    res.json(userPosts);
-  } catch (error) {
-    console.error('Error fetching user\'s posts:', error);
-    res.status(500).json({ message: 'Failed to fetch user\'s posts. Please try again later.' });
-  }
-});
-
-// New: get posts by tag name
-router.get('/tag/:tagName', async (req, res) => {
-  try {
-    const tagName = req.params.tagName;
-    // Find posts whose tags array contains tagName
-    // Assumes stored tagName casing matches the incoming value
-    const posts = await Post.find({ tags: tagName })
-      .populate('author', 'username')
-      .sort({ createdAt: -1 });
-
-    if (!posts || posts.length === 0) {
-      // No posts is not strictly an error; return empty array or a custom message
-      // return res.status(404).json({ message: `No posts found with tag: ${tagName}` });
-      return res.json([]); // Returning an empty array is more common
-    }
-
-    res.json(posts);
-  } catch (error) {
-    console.error(`Error fetching posts by tag ${req.params.tagName}:`, error);
-    res.status(500).json({ message: 'Failed to fetch posts by tag. Please try again later.' });
-  }
-});
-
-// New: get all unique tags
-router.get('/tags/unique', async (req, res) => {
-  try {
-    const uniqueTags = await Post.distinct('tags');
-    // distinct() returns an array of all unique tags
-    // Example: ["Tech", "Health", "AI", "Science"]
-    res.json(uniqueTags.sort()); // Return sorted alphabetically
-  } catch (error) {
-    console.error('Error fetching unique tags:', error);
-    res.status(500).json({ message: 'Failed to fetch unique tags. Please try again later.' });
-  }
-});
-
-module.exports = router; 
+module.exports = router;
