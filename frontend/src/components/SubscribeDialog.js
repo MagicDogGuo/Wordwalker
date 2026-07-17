@@ -11,16 +11,13 @@ import {
   IconButton
 } from '@mui/material';
 import { Close as CloseIcon } from '@mui/icons-material';
-import httpClient from '../config/httpClient';
-import { API_ENDPOINTS } from '../config/api';
 import { useAuth } from '../context/AuthContext';
+import { useSubscribe } from '../hooks/useSubscribe';
 
 const SubscribeDialog = ({ open, onClose }) => {
   const [email, setEmail] = useState('');
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const { user } = useAuth();
+  const subscribe = useSubscribe();
 
   React.useEffect(() => {
     if (open && user && user.email) {
@@ -28,36 +25,33 @@ const SubscribeDialog = ({ open, onClose }) => {
     }
     if (!open) {
       setEmail('');
+      subscribe.reset();
     }
   }, [open, user]);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    setIsLoading(true);
-    setError('');
-    setMessage('');
-
-    try {
-      const response = await httpClient.post(API_ENDPOINTS.SUBSCRIBERS.SUBSCRIBE, { email });
-      setMessage(response.data.message);
-      setEmail('');
-      setTimeout(() => {
-        onClose();
-        setMessage('');
-      }, 2000);
-    } catch (error) {
-      setError(error.response?.data?.message || 'Subscription failed, please try again later');
-    } finally {
-      setIsLoading(false);
-    }
+    subscribe.mutate(email, {
+      onSuccess: () => {
+        setEmail('');
+        setTimeout(() => {
+          onClose();
+          subscribe.reset();
+        }, 2000);
+      }
+    });
   };
 
   const handleClose = () => {
     setEmail('');
-    setMessage('');
-    setError('');
+    subscribe.reset();
     onClose();
   };
+
+  const message = subscribe.data?.message;
+  const errorMessage = subscribe.isError
+    ? (subscribe.error.response?.data?.message || 'Subscription failed, please try again later')
+    : '';
 
   return (
     <Dialog 
@@ -99,7 +93,7 @@ const SubscribeDialog = ({ open, onClose }) => {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Enter your email"
               required
-              disabled={isLoading}
+              disabled={subscribe.isPending}
               sx={{ mb: 2 }}
             />
 
@@ -108,9 +102,9 @@ const SubscribeDialog = ({ open, onClose }) => {
                 {message}
               </Typography>
             )}
-            {error && (
+            {errorMessage && (
               <Typography color="error" sx={{ mb: 2 }}>
-                {error}
+                {errorMessage}
               </Typography>
             )}
 
@@ -118,7 +112,7 @@ const SubscribeDialog = ({ open, onClose }) => {
               <Button 
                 onClick={handleClose} 
                 color="inherit"
-                disabled={isLoading}
+                disabled={subscribe.isPending}
               >
                 Cancel
               </Button>
@@ -126,9 +120,9 @@ const SubscribeDialog = ({ open, onClose }) => {
                 type="submit" 
                 variant="contained" 
                 color="primary"
-                disabled={isLoading}
+                disabled={subscribe.isPending}
               >
-                {isLoading ? 'Subscribing...' : 'Subscribe'}
+                {subscribe.isPending ? 'Subscribing...' : 'Subscribe'}
               </Button>
             </DialogActions>
           </form>
@@ -138,4 +132,4 @@ const SubscribeDialog = ({ open, onClose }) => {
   );
 };
 
-export default SubscribeDialog; 
+export default SubscribeDialog;
