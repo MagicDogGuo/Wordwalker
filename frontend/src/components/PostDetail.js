@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -22,9 +22,10 @@ import {
   Favorite as FavoriteIcon,
   FavoriteBorder as FavoriteBorderIcon
 } from '@mui/icons-material';
-import httpClient from '../config/httpClient';
-import { API_ENDPOINTS } from '../config/api';
 import { useAuth } from '../context/AuthContext';
+import { usePost } from '../hooks/usePost';
+import { usePostLike } from '../hooks/usePostLike';
+import { useDeletePost, useUpdatePost } from '../hooks/usePosts';
 import CommentList from './CommentList';
 import SubscribeForm from './SubscribeForm';
 import './PostDetail.css';
@@ -33,9 +34,13 @@ const PostDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [post, setPost] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const isAdmin = user?.role === 'admin';
+
+  const { data: post, isLoading, isError } = usePost(id);
+  const { liked, likeCount, isLiking, toggleLike } = usePostLike(post, user);
+  const deletePost = useDeletePost();
+  const updatePost = useUpdatePost();
+
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({
     title: '',
@@ -43,102 +48,27 @@ const PostDetail = () => {
     tags: []
   });
   const [tagInput, setTagInput] = useState('');
-  const isAdmin = user?.role === 'admin';
-  const [isLiked, setIsLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(0);
-  const [isLiking, setIsLiking] = useState(false);
 
-  useEffect(() => {
-    fetchPost();
-  }, [id, user]);
-
-  useEffect(() => {
-    console.log(`[PostDetail Diagnostics - Heart Color] isLiked state changed to: ${isLiked}. Heart should now be ${isLiked ? 'RED' : 'DEFAULT'}.`);
-  }, [isLiked]);
-
-  const fetchPost = async () => {
-    console.log('[PostDetail Diagnostics] fetchPost function called.');
-    setLoading(true);
-    setError('');
-    try {
-      const apiUrl = API_ENDPOINTS.POSTS.DETAIL(id);
-      console.log(`[PostDetail Diagnostics] Attempting to fetch post from: ${apiUrl}`);
-      const response = await httpClient.get(apiUrl);
-      const postData = response.data;
-      
-      console.log('[PostDetail Diagnostics] Fetched post data:', JSON.stringify(postData));
-
-      setPost(postData);
-      setEditForm({
-        title: postData.title,
-        content: postData.content,
-        tags: postData.tags || []
-      });
-
-      console.log('[PostDetail Diagnostics] Initializing like status. User:', JSON.stringify(user));
-      console.log('[PostDetail Diagnostics] Post data for likes:', JSON.stringify(postData?.likes));
-
-      if (user && user.id && postData && postData.likes) {
-        const currentUserIdStr = String(user.id);
-        const likesArray = Array.isArray(postData.likes) ? postData.likes : [];
-        let likedByCurrentUser = false;
-        console.log(`[PostDetail Diagnostics] Current User ID: ${currentUserIdStr}, Likes Array on post:`, JSON.stringify(likesArray));
-
-        for (const likeItem of likesArray) {
-          if (likeItem && typeof likeItem === 'object' && 
-              likeItem.user && typeof likeItem.user === 'object' && 
-              likeItem.user._id !== undefined) {
-            const likedUserId = String(likeItem.user._id);
-            console.log(`[PostDetail Diagnostics] Comparing: Item User ID (from likeItem.user._id): ${likedUserId}, Current User ID: ${currentUserIdStr}`);
-            if (likedUserId === currentUserIdStr) {
-              likedByCurrentUser = true;
-              console.log(`[PostDetail Diagnostics] Match found for user ${currentUserIdStr} in post ${postData._id}`);
-              break;
-            }
-          } else {
-            console.warn('[PostDetail Diagnostics] Encountered likeItem with unexpected structure:', JSON.stringify(likeItem));
-          }
-        }
-        setIsLiked(likedByCurrentUser);
-        setLikeCount(likesArray.length);
-        console.log(`[PostDetail Diagnostics] Initialized isLiked: ${likedByCurrentUser}, likeCount: ${likesArray.length}`);
-      } else {
-        setIsLiked(false);
-        const currentLikesLength = postData.likes ? postData.likes.length : 0;
-        setLikeCount(currentLikesLength);
-        console.log(`[PostDetail Diagnostics] User or post data for likes missing or invalid. Initialized isLiked: false, likeCount: ${currentLikesLength}`);
-      }
-      setLoading(false);
-    } catch (error) {
-      console.error("Failed to fetch post:", error.response ? error.response.data : error.message);
-      setError('Failed to fetch post. Please try refreshing the page.');
-      setLoading(false);
-    }
-  };
-
-  const handleDeletePost = async () => {
+  const handleDeletePost = () => {
     if (window.confirm('Are you sure you want to delete this post?')) {
-      try {
-        await httpClient.delete(API_ENDPOINTS.POSTS.DELETE(id));
-        navigate('/posts');
-      } catch (error) {
-        setError('Failed to delete post');
-        console.error('Error deleting post in PostDetail:', error.response ? error.response.data : error.message, error);
-      }
+      deletePost.mutate(id, {
+        onSuccess: () => navigate('/posts')
+      });
     }
   };
 
   const handleEditClick = () => {
-    setIsEditing(true);
-  };
-
-  const handleEditClose = () => {
-    setIsEditing(false);
     setEditForm({
       title: post.title,
       content: post.content,
       tags: post.tags || []
     });
+    setTagInput('');
+    setIsEditing(true);
+  };
+
+  const handleEditClose = () => {
+    setIsEditing(false);
   };
 
   const handleEditChange = (e) => {
@@ -167,54 +97,17 @@ const PostDetail = () => {
     }));
   };
 
-  const handleSaveEdit = async () => {
-    try {
-      await httpClient.put(API_ENDPOINTS.POSTS.UPDATE(id), editForm);
-      await fetchPost();
-      setIsEditing(false);
-    } catch (error) {
-      setError('Failed to update post');
-    }
+  const handleSaveEdit = () => {
+    updatePost.mutate(
+      { id, postData: editForm },
+      { onSuccess: () => setIsEditing(false) }
+    );
   };
 
-  const handleLike = async () => {
-    if (!user) {
-      navigate('/login');
-      return;
-    }
-    if (isLiking) {
-      return;
-    }
+  const handleLike = () => toggleLike(() => navigate('/login'));
 
-    const originalIsLiked = isLiked;
-    const originalLikeCount = likeCount;
-
-    setIsLiking(true);
-    // Optimistic update
-    setIsLiked(!originalIsLiked);
-    setLikeCount(prevCount => !originalIsLiked ? prevCount + 1 : Math.max(0, prevCount - 1));
-
-    try {
-      const response = await httpClient.post(API_ENDPOINTS.POSTS.LIKE(id), {});
-
-      if (response.data && response.data.likeCount !== undefined) {
-        setLikeCount(response.data.likeCount);
-      }
-      // isLiked state relies on optimistic update
-    } catch (error) {
-      console.error('[PostDetail Diagnostics] Error in handleLike:', error.response ? error.response.data : error.message);
-      setError('Operation failed, please try again later');
-      // Rollback optimistic update
-      setIsLiked(originalIsLiked);
-      setLikeCount(originalLikeCount);
-    } finally {
-      setIsLiking(false);
-    }
-  };
-
-  if (loading) return <div>Loading...</div>;
-  if (error) return <div>{error}</div>;
-  if (!post) return <div>Post not found</div>;
+  if (isLoading) return <div>Loading...</div>;
+  if (isError || !post) return <div>Failed to fetch post. Please try refreshing the page.</div>;
 
   const canManagePost = isAdmin || (user && post.author?._id === user.id);
 
@@ -285,13 +178,13 @@ const PostDetail = () => {
             )}
 
             <Box sx={{ display: 'flex', alignItems: 'center', mt: 3, mb: 2 }}>
-              <Tooltip title={isLiked ? "Unlike" : "Like"}>
+              <Tooltip title={liked ? "Unlike" : "Like"}>
                 <span style={{ display: 'inline-flex', alignItems: 'center' }}> 
                   <IconButton 
                     onClick={handleLike} 
                     disabled={isLiking}
                     sx={{
-                      color: isLiked ? '#ff4081' : 'inherit',
+                      color: liked ? '#ff4081' : 'inherit',
                       transition: 'all 0.2s ease-in-out',
                       '&:hover': {
                         backgroundColor: 'rgba(255, 64, 129, 0.08)'
@@ -301,7 +194,7 @@ const PostDetail = () => {
                       }
                     }}
                   >
-                    {isLiked ? <FavoriteIcon /> : <FavoriteBorderIcon />}
+                    {liked ? <FavoriteIcon /> : <FavoriteBorderIcon />}
                   </IconButton>
                 </span>
               </Tooltip>
@@ -309,8 +202,8 @@ const PostDetail = () => {
                 variant="body2" 
                 sx={{ 
                   ml: 1, 
-                  color: isLiked ? '#ff4081' : 'text.secondary',
-                  fontWeight: isLiked ? 'bold' : 'normal',
+                  color: liked ? '#ff4081' : 'text.secondary',
+                  fontWeight: liked ? 'bold' : 'normal',
                   transition: 'all 0.2s ease-in-out'
                 }}
               >
@@ -380,8 +273,8 @@ const PostDetail = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleEditClose}>Cancel</Button>
-          <Button onClick={handleSaveEdit} variant="contained" color="primary">
-            Save Changes
+          <Button onClick={handleSaveEdit} variant="contained" color="primary" disabled={updatePost.isPending}>
+            {updatePost.isPending ? 'Saving...' : 'Save Changes'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -389,4 +282,4 @@ const PostDetail = () => {
   );
 };
 
-export default PostDetail; 
+export default PostDetail;
