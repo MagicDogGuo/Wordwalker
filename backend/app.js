@@ -1,7 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const dotenv = require('dotenv');
+const CONFIG = require('./config');
 const authRoutes = require('./routes/auth');
 const postRoutes = require('./routes/posts');
 const commentRoutes = require('./routes/comments');
@@ -9,14 +9,12 @@ const subscriberRoutes = require('./routes/subscribers');
 const aiImageRoutes = require('./routes/aiImageRoutes');
 const initData = require('./scripts/initData');
 
-dotenv.config();
-
 const app = express();
 
 // Connect to MongoDB and initialize data
 console.log('Connecting to MongoDB...');
 
-mongoose.connect(process.env.MONGODB_URI)
+mongoose.connect(CONFIG.MONGODB_URI)
   .then(async () => {
     console.log('MongoDB connection successful');
     // Initialize data
@@ -51,7 +49,7 @@ app.use((req, res) => {
   res.status(404).json({ message: 'Requested resource not found' });
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = CONFIG.PORT;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });

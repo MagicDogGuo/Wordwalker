@@ -3,6 +3,7 @@ const router = express.Router();
 const axios = require('axios');
 const FormData = require('form-data'); // For Imgur upload
 const { auth } = require('../middleware/auth');
+const CONFIG = require('../config');
 
 // Define a custom error type for Imgur upload failures to identify them later
 class ImgurUploadError extends Error {
@@ -33,7 +34,7 @@ async function generateOpenAiImage(prompt) {
   const openaiResponse = await axios.post(
     'https://api.openai.com/v1/images/generations',
     {
-      model: process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1-mini',
+      model: CONFIG.OPENAI_IMAGE_MODEL,
       prompt: `${prompt}, pixel art style`,
       n: 1,
       size: '1024x1024',
@@ -42,7 +43,7 @@ async function generateOpenAiImage(prompt) {
     },
     {
       headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        Authorization: `Bearer ${CONFIG.OPENAI_API_KEY}`,
         'Content-Type': 'application/json',
       },
     }
@@ -74,7 +75,7 @@ async function generateOpenAiImage(prompt) {
 }
 
 async function uploadToImgur(imageBuffer) {
-  if (!process.env.IMGUR_CLIENT_ID) {
+  if (!CONFIG.IMGUR_CLIENT_ID) {
     console.warn('Imgur Client ID not found. Please set IMGUR_CLIENT_ID environment variable.');
     // Throw specific error type
     throw new ImgurUploadError('Imgur service is not configured (Client ID missing).');
@@ -87,7 +88,7 @@ async function uploadToImgur(imageBuffer) {
     const imgurResponse = await axios.post('https://api.imgur.com/3/image', form, {
       headers: {
         ...form.getHeaders(),
-        'Authorization': `Client-ID ${process.env.IMGUR_CLIENT_ID}`,
+        'Authorization': `Client-ID ${CONFIG.IMGUR_CLIENT_ID}`,
       },
     });
 
@@ -115,7 +116,7 @@ async function uploadToImgur(imageBuffer) {
 router.post('/generate-image', auth, async (req, res) => {
   const { prompt } = req.body;
 
-  if (!process.env.OPENAI_API_KEY) {
+  if (!CONFIG.OPENAI_API_KEY) {
     return res.status(503).json({ message: 'OpenAI service is not configured (API key missing).' });
   }
   if (!prompt || typeof prompt !== 'string' || prompt.trim() === '') {

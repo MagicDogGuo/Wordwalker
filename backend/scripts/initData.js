@@ -1,6 +1,5 @@
-require('dotenv').config();
 const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
+const CONFIG = require('../config');
 const User = require('../models/User');
 const Post = require('../models/Post');
 const Comment = require('../models/Comment');
@@ -234,7 +233,7 @@ async function initData() {
 if (require.main === module) {
   // When running directly, connect to database first
   console.log('Connecting to MongoDB...');
-  mongoose.connect(process.env.MONGODB_URI)
+  mongoose.connect(CONFIG.MONGODB_URI)
     .then(async () => {
       console.log('MongoDB connected successfully');
       await initData();

@@ -3,6 +3,7 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const CONFIG = require('../config');
 
 // Login
 router.post('/login', async (req, res) => {
@@ -37,11 +38,7 @@ router.post('/login', async (req, res) => {
     }
 
     console.log('Generating JWT token...');
-    const token = jwt.sign(
-      { userId: user._id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: '24h' }
-    );
+    const token = jwt.sign({ userId: user._id, role: user.role }, CONFIG.JWT_SECRET, { expiresIn: CONFIG.JWT_EXPIRES_IN });
     console.log('Token generated successfully');
 
     res.json({
@@ -108,11 +105,7 @@ router.post('/register', async (req, res) => {
     console.log('User saved successfully');
 
     // Generate JWT token
-    const token = jwt.sign(
-      { userId: user._id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: '24h' }
-    );
+    const token = jwt.sign({ userId: user._id, role: user.role }, CONFIG.JWT_SECRET, { expiresIn: CONFIG.JWT_EXPIRES_IN });
 
     res.status(201).json({
       message: 'Registration successful',
@@ -139,7 +132,7 @@ router.get('/me', async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
     const user = await User.findById(decoded.userId).select('-password');
 
     if (!user) {
@@ -170,7 +163,7 @@ router.put('/me/profile', async (req, res) => {
     }
     let decoded;
     try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET);
+      decoded = jwt.verify(token, CONFIG.JWT_SECRET);
     } catch (err) {
       return res.status(401).json({ message: 'Token is not valid.' });
     }

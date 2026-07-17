@@ -1,25 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const jwt = require('jsonwebtoken');
 const Post = require('../models/Post');
 const { auth, isAdmin } = require('../middleware/auth');
 const User = require('../models/User');
-
-// Authentication middleware
-const authMiddleware = async (req, res, next) => {
-  try {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) {
-      return res.status(401).json({ message: 'Unauthorized' });
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
-    next();
-  } catch (error) {
-    res.status(401).json({ message: 'Unauthorized' });
-  }
-};
 
 // Get all posts
 router.get('/', async (req, res) => {
