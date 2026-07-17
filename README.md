@@ -60,11 +60,14 @@ Note: I am currently using a free-tier database and server, so the initial login
 ## Technology Stack
 
 *   **Frontend:**
-    *   React (v18+)
+    *   React (v18+) with Create React App (`react-scripts`)
     *   Material UI (MUI v5)
     *   React Router DOM (v6) for navigation
-    *   Axios for API communication
-    *   React Context API for global state management
+    *   TanStack Query (React Query v5) for server state (queries / mutations / cache invalidation)
+    *   Axios via a shared `httpClient` (request interceptor attaches JWT; 401 clears token)
+    *   Service layer (`services/`) wrapping API calls
+    *   Custom hooks (`hooks/`) for data fetching and mutations
+    *   React Context API (`AuthContext`) for client auth state
 *   **Backend:**
     *   Node.js (v18+, locked via `engines` / `.nvmrc`)
     *   Express.js framework (`app.js` for the Express app, `server.js` for startup / graceful shutdown)
@@ -90,19 +93,25 @@ High-level view of how the browser, frontend, backend, database, and external se
 ```mermaid
 flowchart TB
     subgraph Client["User Browser"]
-        UI["React SPA<br/>Material UI + React Router"]
+        UI["React SPA<br/>MUI + React Router"]
         LS["localStorage<br/>JWT token"]
-        CTX["AuthContext<br/>Global auth state"]
+        CTX["AuthContext<br/>Client auth state"]
+        RQ["TanStack Query<br/>Server state cache"]
         UI --> CTX
+        UI --> RQ
         CTX --> LS
     end
 
     subgraph Frontend["Frontend (port 3000)"]
-        Pages["Pages<br/>FavoritePosts / UserPosts / TagPosts / Profile"]
-        Comps["Components<br/>Login / Posts / PostDetail / CommentList..."]
+        Pages["Pages / Components"]
+        Hooks["hooks/<br/>usePosts / usePost / useComments..."]
+        Services["services/<br/>posts / comments / auth / ai..."]
+        HTTP["config/httpClient.js<br/>Axios + auth interceptor"]
         API_CFG["config/api.js<br/>API_ENDPOINTS"]
-        Pages --> Comps
-        Comps --> API_CFG
+        Pages --> Hooks
+        Hooks --> Services
+        Services --> HTTP
+        HTTP --> API_CFG
     end
 
     subgraph Backend["Backend Express (port 5000)"]
@@ -126,7 +135,7 @@ flowchart TB
         IMGUR["Imgur API"]
     end
 
-    UI -->|"Axios + Bearer Token"| APP
+    HTTP -->|"Bearer Token (interceptor)"| APP
     ROUTES --> MONGO
     ROUTES -->|"AI image gen"| OPENAI
     ROUTES -->|"Image upload"| IMGUR
@@ -137,8 +146,8 @@ flowchart TB
 
 | Layer | Technology | Responsibility |
 |-------|------------|----------------|
-| **Client** | React SPA + AuthContext + localStorage | UI, routing, JWT persistence in the browser |
-| **Frontend** | React, MUI, Axios, `config/api.js` | Pages/components; calls backend with `Authorization: Bearer <token>` |
+| **Client** | React SPA + AuthContext + TanStack Query + localStorage | UI, routing, auth state, server-state cache |
+| **Frontend** | MUI, hooks, services, `httpClient`, `config/api.js` | Components call hooks → services → shared Axios instance (JWT attached automatically) |
 | **Backend** | Express, Mongoose, JWT middleware | REST API, auth, business logic, secrets (API keys) |
 | **Database** | MongoDB | Users, posts, comments, subscribers |
 | **External** | OpenAI + Imgur | AI featured images; permanent image URLs on posts |
@@ -148,23 +157,25 @@ flowchart TB
 **Login**
 
 ```
-Browser → POST /api/auth/login → verify password (bcrypt) → JWT → localStorage + AuthContext
+Browser → authService.loginRequest → POST /api/auth/login → JWT → localStorage + AuthContext
+(subsequent API calls: httpClient interceptor reads token from localStorage)
 ```
 
 **Read a post**
 
 ```
-Browser → GET /api/posts/:id → Express → Mongoose → MongoDB → JSON → React (PostDetail)
+PostDetail → usePost(id) → postsService.getPost → httpClient → GET /api/posts/:id → MongoDB → TanStack Query cache
 ```
 
 **Create post with AI image (authenticated)**
 
 ```
-Browser (JWT) → POST /api/ai/generate-image → OpenAI → download → Imgur → imageUrl
-Browser (JWT) → POST /api/posts { title, content, imageUrl } → save to MongoDB
+PostForm → useGeneratePostImage → aiService → POST /api/ai/generate-image → OpenAI → Imgur → imageUrl
+Posts / UserPosts → useCreatePost → postsService → POST /api/posts { title, content, imageUrl } → MongoDB
+(query invalidation refreshes posts list / detail / my-posts caches)
 ```
 
-The browser never talks to MongoDB or external APIs directly; only the Express server does, keeping credentials on the server.
+The browser never talks to MongoDB or external APIs directly; only the Express server does, keeping credentials on the server. JWT is attached by `httpClient`'s request interceptor (read from `localStorage`), not wired manually in each component.
 
 ### AI Image Generation Flow
 
@@ -281,27 +292,30 @@ Before you begin, ensure you have the following installed:
 ```
 wordwalker/
 ├── backend/
-│   ├── config/         # Configuration files (e.g., database connection)
-│   ├── middleware/     # Express middleware (e.g., auth, error handling)
+│   ├── config/         # Centralized env config (config/index.js)
+│   ├── middleware/     # Express middleware (auth, error handling, rate limit)
 │   ├── models/         # Mongoose data models (User, Post, Comment, etc.)
 │   ├── routes/         # API route definitions
 │   ├── scripts/        # Initialization scripts (e.g., default data)
-│   └── app.js          # Express application entry point and main configuration
+│   ├── app.js          # Express application
+│   └── server.js       # HTTP server startup / graceful shutdown
 ├── frontend/
-│   ├── public/     # Static assets (index.html, favicon, images)
+│   ├── public/         # Static assets (index.html, favicon, images)
 │   ├── src/
-│   │   ├── assets/       # Image, font resources
-│   │   ├── components/   # React components
-│   │   ├── config/       # Frontend configuration (e.g., API endpoints)
-│   │   ├── context/      # React Context API (e.g., AuthContext)
-│   │   ├── hooks/        # Custom React Hooks
-│   │   ├── pages/        # Page-level components
-│   │   ├── services/     # API service wrappers
-│   │   ├── styles/       # Global styles, theme configuration
-│   │   ├── utils/        # Utility functions
-│   │   ├── App.js        # Root React component and router setup
-│   │   └── index.js      # React application entry point
+│   │   ├── components/ # UI components (Posts, PostDetail, PostForm, Layout...)
+│   │   ├── config/
+│   │   │   ├── api.js         # API_ENDPOINTS constants
+│   │   │   ├── httpClient.js  # Shared Axios instance + auth interceptor
+│   │   │   └── queryClient.js # TanStack Query client defaults
+│   │   ├── context/    # AuthContext (client auth state)
+│   │   ├── hooks/      # usePosts, usePost, useComments, usePostLike...
+│   │   ├── pages/      # Route-level screens (favorites, my posts, profile, tags)
+│   │   ├── services/   # Thin API wrappers (posts, comments, auth, ai, subscribers)
+│   │   ├── theme.js    # Material UI theme
+│   │   ├── App.js      # Router + ProtectedRoute
+│   │   └── index.js    # Entry: QueryClientProvider + ThemeProvider
 │   └── package.json
+├── docs/architecture/  # System / frontend / backend architecture notes
 └── README.md
 ```
 

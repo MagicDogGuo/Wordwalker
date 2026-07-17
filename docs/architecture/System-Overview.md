@@ -7,19 +7,25 @@ High-level view of how the browser, frontend, backend, database, and external se
 ```mermaid
 flowchart TB
     subgraph Client["User Browser"]
-        UI["React SPA<br/>Material UI + React Router"]
+        UI["React SPA<br/>MUI + React Router"]
         LS["localStorage<br/>JWT token"]
-        CTX["AuthContext<br/>Global auth state"]
+        CTX["AuthContext<br/>Client auth state"]
+        RQ["TanStack Query<br/>Server state cache"]
         UI --> CTX
+        UI --> RQ
         CTX --> LS
     end
 
     subgraph Frontend["Frontend (port 3000)"]
-        Pages["Pages<br/>FavoritePosts / UserPosts / TagPosts / Profile"]
-        Comps["Components<br/>Login / Posts / PostDetail / CommentList..."]
+        Pages["Pages / Components"]
+        Hooks["hooks/<br/>usePosts / usePost / useComments..."]
+        Services["services/<br/>posts / comments / auth / ai..."]
+        HTTP["config/httpClient.js<br/>Axios + auth interceptor"]
         API_CFG["config/api.js<br/>API_ENDPOINTS"]
-        Pages --> Comps
-        Comps --> API_CFG
+        Pages --> Hooks
+        Hooks --> Services
+        Services --> HTTP
+        HTTP --> API_CFG
     end
 
     subgraph Backend["Backend Express (port 5000)"]
@@ -43,7 +49,7 @@ flowchart TB
         IMGUR["Imgur API"]
     end
 
-    UI -->|"Axios + Bearer Token"| APP
+    HTTP -->|"Bearer Token (interceptor)"| APP
     ROUTES --> MONGO
     ROUTES -->|"AI image gen"| OPENAI
     ROUTES -->|"Image upload"| IMGUR
@@ -54,8 +60,8 @@ flowchart TB
 
 | Layer | Technology | Responsibility |
 |-------|------------|----------------|
-| **Client** | React SPA + AuthContext + localStorage | UI, routing, JWT persistence in the browser |
-| **Frontend** | React, MUI, Axios, `config/api.js` | Pages and components; calls backend with `Authorization: Bearer <token>` |
+| **Client** | React SPA + AuthContext + TanStack Query + localStorage | UI, routing, auth state, server-state cache |
+| **Frontend** | MUI, hooks, services, `httpClient`, `config/api.js` | Components call hooks → services → shared Axios instance (JWT attached automatically) |
 | **Backend** | Express, Mongoose, JWT middleware | REST API, authorization, business logic, API secrets |
 | **Database** | MongoDB | Users, posts, comments, subscribers |
 | **External** | OpenAI + Imgur | AI cover images; stable public image URLs on posts |
@@ -65,28 +71,29 @@ flowchart TB
 ### Login
 
 ```
-Browser → POST /api/auth/login → verify password (bcrypt) → JWT → localStorage + AuthContext
+Browser → authService.loginRequest → POST /api/auth/login → JWT → localStorage + AuthContext
+(subsequent API calls: httpClient interceptor reads token from localStorage)
 ```
 
 ### Read a post
 
 ```
-Browser → GET /api/posts/:id → Express → Mongoose → MongoDB → JSON → React (PostDetail)
+PostDetail → usePost(id) → postsService.getPost → httpClient → GET /api/posts/:id → MongoDB → TanStack Query cache
 ```
 
 ### Create post with AI image (authenticated)
 
 ```
-Browser (JWT) → POST /api/ai/generate-image → OpenAI → download → Imgur → imageUrl
-Browser (JWT) → POST /api/posts { title, content, imageUrl } → save to MongoDB
+PostForm → useGeneratePostImage → aiService → POST /api/ai/generate-image → OpenAI → Imgur → imageUrl
+Posts / UserPosts → useCreatePost → postsService → POST /api/posts { title, content, imageUrl } → MongoDB
+(query invalidation refreshes posts list / detail / my-posts caches)
 ```
 
 ## Security note
 
-The browser **never** talks to MongoDB or external APIs (OpenAI, Imgur) directly. Only the Express server does, keeping credentials on the server.
+The browser **never** talks to MongoDB or external APIs (OpenAI, Imgur) directly. Only the Express server does, keeping credentials on the server. JWT is attached by `httpClient`'s request interceptor, not wired manually in each component.
 
 ## Related pages
 
-- [Frontend Architecture](Frontend-Architecture)
-- [Backend Architecture](Backend-Architecture)
-
+- [Frontend Architecture](Frontend-Architecture.md)
+- [Backend Architecture](Backend-Architecture.md)
