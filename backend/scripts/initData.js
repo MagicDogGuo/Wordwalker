@@ -92,8 +92,7 @@ const defaultPosts = [
 async function initData() {
   try {
     console.log('Starting data initialization...');
-    console.log('MongoDB URI:', process.env.MONGODB_URI);
-    
+
     let adminUser;
     
     // Check whether an admin user already exists
@@ -155,13 +154,19 @@ async function initData() {
       console.log('Using existing regular user (commenter):', { id: commentingUser._id, username: commentingUser.username });
     }
 
-    // Remove all existing posts and recreate them
-    console.log('Clearing existing posts...');
-    await Post.deleteMany({});
-    console.log('Existing posts cleared');
+    // Only seed demo posts/comments the very first time the database is empty.
+    // IMPORTANT: this used to unconditionally wipe *all* posts/comments on every
+    // server start, which would destroy real user-generated content on restart.
+    // Now we only seed when there are no posts at all yet (fresh database).
+    const existingPostCount = await Post.countDocuments({});
+    if (existingPostCount > 0) {
+      console.log(`Found ${existingPostCount} existing post(s); skipping demo data seeding to avoid data loss.`);
+      console.log('Data initialization completed');
+      return;
+    }
 
-    // Create new posts
-    console.log('Starting post creation...');
+    // Create demo posts (only runs on a fresh/empty database)
+    console.log('No existing posts found. Seeding demo posts...');
     const createdPosts = []; // Store created posts
     for (const postData of defaultPosts) {
       const post = new Post({
@@ -175,11 +180,6 @@ async function initData() {
       console.log(`Post created successfully: ${post.title} (ID: ${post._id})`);
     }
     console.log(`${createdPosts.length} posts created.`);
-
-    // Clear existing comments (optional but recommended for consistent initialization)
-    console.log('Clearing existing comments...');
-    await Comment.deleteMany({});
-    console.log('Existing comments cleared');
 
     // Add comments to 5 random posts (if posts and user exist)
     if (commentingUser && createdPosts.length > 0) {
