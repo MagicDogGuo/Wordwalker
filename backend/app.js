@@ -9,6 +9,7 @@ const commentRoutes = require('./routes/comments');
 const subscriberRoutes = require('./routes/subscribers');
 const aiImageRoutes = require('./routes/aiImageRoutes');
 const initData = require('./scripts/initData');
+const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
 
@@ -39,16 +40,14 @@ app.use('/api/comments', commentRoutes);
 app.use('/api/subscribers', subscriberRoutes);
 app.use('/api/ai', aiImageRoutes);
 
-// Error handling
-app.use((err, req, res, next) => {
-  logger.error(err.stack);
-  res.status(500).json({ message: 'Server error' });
-});
-
-// 404 handling
+// 404 handling (must come after all routes, before the central error handler)
 app.use((req, res) => {
   res.status(404).json({ message: 'Requested resource not found' });
 });
+
+// Central error handler - every route forwards errors here via asyncHandler/next(err)
+// instead of formatting error responses ad-hoc (see middleware/errorHandler.js).
+app.use(errorHandler);
 
 const PORT = CONFIG.PORT;
 app.listen(PORT, () => {

@@ -4,6 +4,9 @@ const axios = require('axios');
 const FormData = require('form-data'); // For Imgur upload
 const { auth } = require('../middleware/auth');
 const CONFIG = require('../config');
+const logger = require('../utils/logger');
+const asyncHandler = require('../middleware/asyncHandler');
+const AppError = require('../utils/AppError');
 
 // Define a custom error type for Imgur upload failures to identify them later
 class ImgurUploadError extends Error {
@@ -70,13 +73,13 @@ async function generateOpenAiImage(prompt) {
     };
   }
 
-  console.error('Failed to extract image from OpenAI response:', openaiResponse.data);
+  logger.error('Failed to extract image from OpenAI response:', openaiResponse.data);
   throw new Error('Failed to parse image from AI (OpenAI) response.');
 }
 
 async function uploadToImgur(imageBuffer) {
   if (!CONFIG.IMGUR_CLIENT_ID) {
-    console.warn('Imgur Client ID not found. Please set IMGUR_CLIENT_ID environment variable.');
+    logger.warn('Imgur Client ID not found. Please set IMGUR_CLIENT_ID environment variable.');
     // Throw specific error type
     throw new ImgurUploadError('Imgur service is not configured (Client ID missing).');
   }
@@ -95,11 +98,11 @@ async function uploadToImgur(imageBuffer) {
     if (imgurResponse.data && imgurResponse.data.success && imgurResponse.data.data && imgurResponse.data.data.link) {
       return imgurResponse.data.data.link;
     } else {
-      console.error('Failed to extract Imgur link from response:', imgurResponse.data);
+      logger.error('Failed to extract Imgur link from response:', imgurResponse.data);
       throw new ImgurUploadError('Failed to parse Imgur URL from API response.');
     }
   } catch (error) {
-    console.error('Error uploading to Imgur:', error.response ? JSON.stringify(error.response.data, null, 2) : error.message);
+    logger.error('Error uploading to Imgur:', error.response ? JSON.stringify(error.response.data, null, 2) : error.message);
     let errorMessage = 'Failed to upload image to Imgur.';
     if (error.response && error.response.data && error.response.data.data && typeof error.response.data.data.error === 'string') {
         errorMessage = error.response.data.data.error;
@@ -113,14 +116,14 @@ async function uploadToImgur(imageBuffer) {
   }
 }
 
-router.post('/generate-image', auth, async (req, res) => {
+router.post('/generate-image', auth, asyncHandler(async (req, res) => {
   const { prompt } = req.body;
 
   if (!CONFIG.OPENAI_API_KEY) {
-    return res.status(503).json({ message: 'OpenAI service is not configured (API key missing).' });
+    throw new AppError('OpenAI service is not configured (API key missing).', 503);
   }
   if (!prompt || typeof prompt !== 'string' || prompt.trim() === '') {
-    return res.status(400).json({ message: 'A valid prompt is required.' });
+    throw new AppError('A valid prompt is required.', 400);
   }
 
   let fallbackImageUrl = null;
@@ -132,34 +135,33 @@ router.post('/generate-image', auth, async (req, res) => {
     fallbackImageUrl = generatedImage.fallbackImageUrl;
   } catch (error) {
     const detailedError = error.response ? JSON.stringify(error.response.data, null, 2) : error.message;
-    console.error('Error during OpenAI image generation:', detailedError, error.stack);
+    logger.error('Error during OpenAI image generation:', detailedError, error.stack);
     const message = getAxiosErrorMessage(error, 'Failed during OpenAI image generation.');
-    return res.status(500).json({ message });
+    throw new AppError(message, 500);
   }
 
-  // If OpenAI steps were successful, imageBuffer and openaiImageUrl will be populated
+  // If OpenAI steps were successful, imageBuffer and openaiImageUrl will be populated.
+  // Note: an Imgur upload failure here is intentionally NOT a hard error - we still
+  // successfully generated the image, so we fall back to the embedded image data
+  // instead of failing the whole request.
   try {
-    // Step 3: Upload the image buffer to Imgur
     const imgurUrl = await uploadToImgur(imageBuffer);
-    // If uploadToImgur is successful, it returns the URL
     return res.json({ imageUrl: imgurUrl });
-
   } catch (imgurError) {
-    // Check if the error is from Imgur upload (using our custom error type or by checking the message)
     if (imgurError instanceof ImgurUploadError || imgurError.message.includes('Imgur')) {
-      console.warn('Imgur upload failed, returning OpenAI URL as fallback:', imgurError.message);
+      logger.warn('Imgur upload failed, returning OpenAI URL as fallback:', imgurError.message);
       return res.status(200).json({
         imageUrl: fallbackImageUrl,
         warning: `Image generated successfully, but failed to save to Imgur: ${imgurError.message}. Using embedded image data instead.`,
       });
-    } else {
-      // For any other unexpected errors after OpenAI success but not from Imgur
-      const detailedError = imgurError.response ? JSON.stringify(imgurError.response.data, null, 2) : imgurError.message;
-      console.error('Unexpected error after OpenAI success:', detailedError, imgurError.stack);
-      const message = (imgurError instanceof Error && imgurError.message) ? imgurError.message : 'An unexpected error occurred after image generation.';
-      return res.status(500).json({ message });
     }
+
+    // For any other unexpected errors after OpenAI success but not from Imgur
+    const detailedError = imgurError.response ? JSON.stringify(imgurError.response.data, null, 2) : imgurError.message;
+    logger.error('Unexpected error after OpenAI success:', detailedError, imgurError.stack);
+    const message = (imgurError instanceof Error && imgurError.message) ? imgurError.message : 'An unexpected error occurred after image generation.';
+    throw new AppError(message, 500);
   }
-});
+}));
 
 module.exports = router; 
