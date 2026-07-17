@@ -1,6 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const helmet = require('helmet');
 const CONFIG = require('./config');
 const logger = require('./utils/logger');
 const authRoutes = require('./routes/auth');
@@ -10,6 +11,7 @@ const subscriberRoutes = require('./routes/subscribers');
 const aiImageRoutes = require('./routes/aiImageRoutes');
 const initData = require('./scripts/initData');
 const errorHandler = require('./middleware/errorHandler');
+const { apiLimiter, authLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
 
@@ -29,12 +31,14 @@ mongoose.connect(CONFIG.MONGODB_URI)
     process.exit(1);
   });
 
-// Middleware
-app.use(cors());
+// Security & rate-limiting middleware
+app.use(helmet());
+app.use(cors({ origin: CONFIG.CLIENT_URL }));
 app.use(express.json());
+app.use('/api', apiLimiter);
 
 // Routes
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/comments', commentRoutes);
 app.use('/api/subscribers', subscriberRoutes);
