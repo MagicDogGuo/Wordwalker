@@ -1,6 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import httpClient from '../config/httpClient';
-import { API_ENDPOINTS } from '../config/api';
+import * as authService from '../services/authService';
 
 const AuthContext = createContext(null);
 
@@ -12,9 +11,9 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
     if (storedToken) {
-      httpClient.get(API_ENDPOINTS.AUTH.ME)
-      .then(response => {
-        setUser(response.data);
+      authService.fetchCurrentUser()
+      .then(userData => {
+        setUser(userData);
         setToken(storedToken);
       })
       .catch(error => {
@@ -35,8 +34,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (formData) => {
     try {
-      const response = await httpClient.post(API_ENDPOINTS.AUTH.LOGIN, formData);
-      const { token: newToken, user: userData } = response.data;
+      const { token: newToken, user: userData } = await authService.loginRequest(formData);
       localStorage.setItem('token', newToken);
       setUser(userData);
       setToken(newToken);
@@ -51,7 +49,7 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (formData) => {
     try {
-      await httpClient.post(API_ENDPOINTS.AUTH.REGISTER, formData);
+      await authService.registerRequest(formData);
 
       return { 
         success: true,
@@ -87,4 +85,4 @@ export const useAuth = () => {
   return context;
 };
 
-export default AuthContext; 
+export default AuthContext;
