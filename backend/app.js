@@ -2,6 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const CONFIG = require('./config');
+const logger = require('./utils/logger');
 const authRoutes = require('./routes/auth');
 const postRoutes = require('./routes/posts');
 const commentRoutes = require('./routes/comments');
@@ -12,18 +13,18 @@ const initData = require('./scripts/initData');
 const app = express();
 
 // Connect to MongoDB and initialize data
-console.log('Connecting to MongoDB...');
+logger.info('Connecting to MongoDB...');
 
 mongoose.connect(CONFIG.MONGODB_URI)
   .then(async () => {
-    console.log('MongoDB connection successful');
+    logger.info('MongoDB connection successful');
     // Initialize data
-    console.log('Starting to initialize data...');
+    logger.info('Starting to initialize data...');
     await initData();
-    console.log('Data initialization completed');
+    logger.info('Data initialization completed');
   })
   .catch(err => {
-    console.error('MongoDB connection failed:', err);
+    logger.error('MongoDB connection failed:', err);
     process.exit(1);
   });
 
@@ -40,7 +41,7 @@ app.use('/api/ai', aiImageRoutes);
 
 // Error handling
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  logger.error(err.stack);
   res.status(500).json({ message: 'Server error' });
 });
 
@@ -51,7 +52,7 @@ app.use((req, res) => {
 
 const PORT = CONFIG.PORT;
 app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+  logger.info(`Server is running on port ${PORT}`);
 });
 
 module.exports = app; 

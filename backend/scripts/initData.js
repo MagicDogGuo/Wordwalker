@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const CONFIG = require('../config');
+const logger = require('../utils/logger');
 const User = require('../models/User');
 const Post = require('../models/Post');
 const Comment = require('../models/Comment');
@@ -90,17 +91,17 @@ const defaultPosts = [
 
 async function initData() {
   try {
-    console.log('Starting data initialization...');
+    logger.info('Starting data initialization...');
 
     let adminUser;
     
     // Check whether an admin user already exists
-    console.log('Checking admin user...');
+    logger.info('Checking admin user...');
     const existingAdmin = await User.findOne({ email: defaultAdmin.email });
-    console.log('Existing admin user:', existingAdmin ? 'exists' : 'does not exist');
+    logger.info('Existing admin user:', existingAdmin ? 'exists' : 'does not exist');
     
     if (!existingAdmin) {
-      console.log('Creating new admin user...');
+      logger.info('Creating new admin user...');
       // Create admin user
       adminUser = new User({
         username: defaultAdmin.username,
@@ -111,7 +112,7 @@ async function initData() {
         createdAt: defaultAdmin.createdAt
       });
       await adminUser.save();
-      console.log('Admin user created successfully:', {
+      logger.info('Admin user created successfully:', {
         id: adminUser._id,
         username: adminUser.username,
         role: adminUser.role,
@@ -120,12 +121,12 @@ async function initData() {
     } else {
       adminUser = existingAdmin;
       if (adminUser.username !== defaultAdmin.username) {
-        console.log(`Updating existing admin username from ${adminUser.username} to ${defaultAdmin.username}...`);
+        logger.info(`Updating existing admin username from ${adminUser.username} to ${defaultAdmin.username}...`);
         adminUser.username = defaultAdmin.username;
         await adminUser.save();
-        console.log('Admin username updated successfully.');
+        logger.info('Admin username updated successfully.');
       }
-      console.log('Using existing admin user:', {
+      logger.info('Using existing admin user:', {
         id: adminUser._id,
         username: adminUser.username,
         role: adminUser.role
@@ -134,10 +135,10 @@ async function initData() {
 
     // Create or fetch a regular user (commenter)
     let commentingUser;
-    console.log('Checking regular user (commenter)...');
+    logger.info('Checking regular user (commenter)...');
     const existingCommentingUser = await User.findOne({ email: defaultUser.email });
     if (!existingCommentingUser) {
-      console.log('Creating new regular user (commenter)...');
+      logger.info('Creating new regular user (commenter)...');
       commentingUser = new User({
         username: defaultUser.username,
         email: defaultUser.email,
@@ -147,10 +148,10 @@ async function initData() {
         createdAt: defaultUser.createdAt
       });
       await commentingUser.save();
-      console.log('Regular user (commenter) created successfully:', { id: commentingUser._id, username: commentingUser.username });
+      logger.info('Regular user (commenter) created successfully:', { id: commentingUser._id, username: commentingUser.username });
     } else {
       commentingUser = existingCommentingUser;
-      console.log('Using existing regular user (commenter):', { id: commentingUser._id, username: commentingUser.username });
+      logger.info('Using existing regular user (commenter):', { id: commentingUser._id, username: commentingUser.username });
     }
 
     // Only seed demo posts/comments the very first time the database is empty.
@@ -159,13 +160,13 @@ async function initData() {
     // Now we only seed when there are no posts at all yet (fresh database).
     const existingPostCount = await Post.countDocuments({});
     if (existingPostCount > 0) {
-      console.log(`Found ${existingPostCount} existing post(s); skipping demo data seeding to avoid data loss.`);
-      console.log('Data initialization completed');
+      logger.info(`Found ${existingPostCount} existing post(s); skipping demo data seeding to avoid data loss.`);
+      logger.info('Data initialization completed');
       return;
     }
 
     // Create demo posts (only runs on a fresh/empty database)
-    console.log('No existing posts found. Seeding demo posts...');
+    logger.info('No existing posts found. Seeding demo posts...');
     const createdPosts = []; // Store created posts
     for (const postData of defaultPosts) {
       const post = new Post({
@@ -176,13 +177,13 @@ async function initData() {
       });
       await post.save();
       createdPosts.push(post); // Add created post to the list
-      console.log(`Post created successfully: ${post.title} (ID: ${post._id})`);
+      logger.info(`Post created successfully: ${post.title} (ID: ${post._id})`);
     }
-    console.log(`${createdPosts.length} posts created.`);
+    logger.info(`${createdPosts.length} posts created.`);
 
     // Add comments to 5 random posts (if posts and user exist)
     if (commentingUser && createdPosts.length > 0) {
-      console.log(`Starting to add comments for ${commentingUser.username}...`);
+      logger.info(`Starting to add comments for ${commentingUser.username}...`);
       const postsToCommentOn = [...createdPosts].sort(() => 0.5 - Math.random()).slice(0, 5);
       let commentsAddedCount = 0;
 
@@ -211,20 +212,20 @@ async function initData() {
           });
           await newComment.save();
           commentsAddedCount++;
-          console.log(`Added comment to post "${post.title}": "${randomCommentContent}"`);
+          logger.info(`Added comment to post "${post.title}": "${randomCommentContent}"`);
         }
-        console.log(`${commentingUser.username} successfully added ${commentsAddedCount} comments.`);
+        logger.info(`${commentingUser.username} successfully added ${commentsAddedCount} comments.`);
       } else {
-        console.log('Not enough posts available to add comments.');
+        logger.info('Not enough posts available to add comments.');
       }
     } else {
-      if (!commentingUser) console.log('Commenting user does not exist, skipping comment creation.');
-      if (createdPosts.length === 0) console.log('No posts available for comments, skipping comment creation.');
+      if (!commentingUser) logger.info('Commenting user does not exist, skipping comment creation.');
+      if (createdPosts.length === 0) logger.info('No posts available for comments, skipping comment creation.');
     }
 
-    console.log('Data initialization completed');
+    logger.info('Data initialization completed');
   } catch (error) {
-    console.error('Error during initialization:', error);
+    logger.error('Error during initialization:', error);
     throw error;
   }
 }
@@ -232,17 +233,17 @@ async function initData() {
 // Run initialization when this file is executed directly (not imported)
 if (require.main === module) {
   // When running directly, connect to database first
-  console.log('Connecting to MongoDB...');
+  logger.info('Connecting to MongoDB...');
   mongoose.connect(CONFIG.MONGODB_URI)
     .then(async () => {
-      console.log('MongoDB connected successfully');
+      logger.info('MongoDB connected successfully');
       await initData();
       // Disconnect only when running directly
       await mongoose.disconnect();
-      console.log('MongoDB disconnected');
+      logger.info('MongoDB disconnected');
     })
     .catch(error => {
-      console.error('MongoDB connection failed:', error);
+      logger.error('MongoDB connection failed:', error);
       process.exit(1);
     });
 }
